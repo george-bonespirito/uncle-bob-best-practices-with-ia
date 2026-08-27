@@ -191,6 +191,10 @@ sequenceDiagram
 - **Mapa de contextos (9 MS):** [`app/CONTEXT-MAP.md`](../../CONTEXT-MAP.md)
 - **ADR raiz 0001** — worker-polling entre Orkes e os 7 MS de dado, em vez de HTTP push: [`app/docs/adr/0001-worker-polling-for-processing-steps.md`](../adr/0001-worker-polling-for-processing-steps.md)
 - **ADR raiz 0002** — fluxo compensatório (Saga): quais steps compensam, ordem do workflow, estado `COMPENSATION_FAILED`: [`app/docs/adr/0002-compensating-flow-for-order-processing.md`](../adr/0002-compensating-flow-for-order-processing.md)
+- **ADR raiz 0003** — Avro + Apicurio Registry para as mensagens Kafka (resultado das steps e CDC): [`app/docs/adr/0003-avro-schema-registry-for-kafka-messages.md`](../adr/0003-avro-schema-registry-for-kafka-messages.md)
+- **ADR raiz 0004** — um tópico Kafka por task do Conductor (7, não 1), Data Enrichment é sub-workflow de 3 tasks: [`app/docs/adr/0004-one-kafka-topic-per-processing-step.md`](../adr/0004-one-kafka-topic-per-processing-step.md)
+- **ADR raiz 0005** — dead letter topic por tópico de resultado, pra falha de consumo em MS Order (distinto do retry de task do Conductor): [`app/docs/adr/0005-dead-letter-topics-for-order-consumer-failures.md`](../adr/0005-dead-letter-topics-for-order-consumer-failures.md)
+- **Integration Spec** — schema completo dos 7 tópicos de resultado, envelope, retry/idempotência: [`app/docs/specs/processing-steps-kafka-integration.md`](processing-steps-kafka-integration.md)
 - **ADR 0001 (Order)** — optimistic locking (version) substitui Redis lock para concorrência entre Processing Steps: [`app/order/docs/adr/0001-optimistic-locking-for-order-writes.md`](../../order/docs/adr/0001-optimistic-locking-for-order-writes.md)
 - **ADR 0002 (Order)** — Debezium (WAL) em vez de outbox pattern para CDC do Order: [`app/order/docs/adr/0002-debezium-for-order-cdc.md`](../../order/docs/adr/0002-debezium-for-order-cdc.md)
 - **ADR 0003 (Order)** — Kafka (tópico não particionado por order_id) + staging + SKIP LOCKED para aplicar resultado das Processing Steps: [`app/order/docs/adr/0003-kafka-staging-skip-locked-for-processing-results.md`](../../order/docs/adr/0003-kafka-staging-skip-locked-for-processing-results.md)
@@ -288,6 +292,30 @@ Existe um servidor on-premise (Ubuntu Server) disponível como alvo de deploy re
 - **Brokers de apoio (Postgres, Kafka, Orkes) provisionados direto no K3s desde o início da implementação** — evita montar um setup descartável via `docker compose` local e depois refazer tudo pra migrar pro cluster. Quando a implementação começar, a primeira peça de infra é o K3s + esses 3 brokers rodando lá, não um `compose.yaml` local que depois vira obsoleto.
 - **Em aberto, não resolvido:** o loop de desenvolvimento do dia a dia (edição de código, `./gradlew check` rápido) continua local via `docker compose` (container-first, mas sem depender do cluster pra iterar) enquanto o K3s fica reservado pra validar deploy/autoscaling? Ou o dev loop também passa a mirar o K3s desde o início, sem `compose.yaml` nenhum? Isso muda o `Dockerfile`/manifests que precisam existir e não foi decidido — fica pra quando este direcionamento for puxado de verdade (grilling dedicado, como fizemos pro domínio).
 - **Também em aberto:** secrets (senha do Postgres, credencial do WhatsApp, config do Orkes), exposição de rede (se o provedor de WhatsApp exigir webhook público, o servidor on-prem só em LAN não resolve sozinho), e caminho de CI/CD do Codeberg (Forgejo Actions, não GitHub Actions — o `CLAUDE.md` global cita GitHub Actions, mas o repo deste projeto está no Codeberg) até o K3s.
+
+---
+
+## 7. Partes cinzentas (tracking — não perder de vista)
+
+Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 parcial, ⬜ aberto.
+
+**Bloqueantes pra implementar MS Order:**
+1. ✅ Schema das mensagens Kafka — Avro + Apicurio Registry, 7 tópicos (1 por task do Conductor), envelope comum definido — ADR raiz 0003/0004, `processing-steps-kafka-integration.md`.
+2. ⬜ Colunas reais da tabela `orders` além de `status`/`version` — o que cada Processing Step escreve exatamente, ainda não especificado campo a campo.
+3. ✅ Retry/timeout do worker-polling — 3 tentativas, backoff exponencial (1s/5s/15s) — `processing-steps-kafka-integration.md`, seção Resilience.
+4. ✅ Idempotência da ação compensatória — `resultId` (aplicação ao Order) + `creditHoldId`/`stockReservationId` (compensação em si) — mesma seção.
+
+**Bloqueantes pros outros 8 MS:**
+5. ⬜ Nenhum MS além de Order tem `CONTEXT.md` — linguagem de domínio de Customers, Products, Pricing, Stock, Contabil, Invoice, Route, Notifications não resolvida.
+
+**Em aberto, não bloqueante agora:**
+6. ⬜ Provedor de WhatsApp (Twilio/Meta Cloud API/outro).
+7. ⬜ Volume esperado do import em massa — parsing streaming vs. DOM completo do `.xlsx`.
+8. ⬜ `COMPENSATION_FAILED` sem caminho de resolução automatizado (aceito como fora de escopo).
+9. ⬜ Direção K3s — dev loop local vs. cluster, secrets, exposição de rede, CI/CD Codeberg→K3s (seção 6 acima).
+10. ⬜ Teste de integração da Saga ponta a ponta (além do Gherkin de aceitação) — não desenhado.
+11. ✅ Dead letter — tópico `.dlt` por tópico de resultado, retry curto pra falha transitória, direto ao DLT pra falha permanente, resolução manual — ADR raiz 0005.
+12. ⬜ Mecanismo de contract test do schema Avro em CI (compatibility check antes de publish) — não desenhado.
 
 ---
 

@@ -2,7 +2,7 @@
 
 Depois que cada um dos 7 MS de dado termina sua Processing Step (via worker-polling do Orkes, ver ADR raiz 0001), o resultado precisa chegar no MS Order e ser aplicado ao Order correspondente.
 
-Decidimos: os 7 MS publicam o resultado num único tópico Kafka. MS Order roda múltiplas instâncias no mesmo consumer group, consumindo esse tópico — o tópico é deliberadamente **não particionado por `order_id`**, para que mensagens do mesmo Order possam cair em partitions diferentes e ser processadas por instâncias diferentes ao mesmo tempo (Kafka garante exclusividade só dentro de uma partition, não entre partitions — particionar por `order_id` eliminaria a concorrência real que este projeto existe para exercitar).
+Decidimos: os 7 MS publicam o resultado em tópicos Kafka (um por Processing Step — ver ADR raiz 0004). MS Order roda múltiplas instâncias no mesmo consumer group, consumindo esses tópicos — cada tópico é deliberadamente **não particionado por `order_id`**, para que mensagens do mesmo Order possam cair em partitions diferentes e ser processadas por instâncias diferentes ao mesmo tempo (Kafka garante exclusividade só dentro de uma partition, não entre partitions — particionar por `order_id` eliminaria a concorrência real que este projeto existe para exercitar).
 
 O consumer de cada instância não aplica o resultado direto no Order — ele só grava a mensagem numa tabela de staging (`order_update_event`), rápido, sem lógica de negócio, liberando o commit do offset Kafka cedo. Um pool de workers em virtual threads, dentro de cada instância, reivindica linhas pendentes de `order_update_event` via `SELECT ... FOR UPDATE SKIP LOCKED` e aplica cada uma no Order com optimistic locking (ADR 0001 do contexto Order).
 

@@ -12,4 +12,6 @@ Alternativa rejeitada: HTTP task nativa do Conductor (Orkes chama cada MS direta
 
 Trade-off aceito: cada MS agora roda um processo worker de longa duração fazendo polling, com mais boilerplate de setup (registro do worker, task definition no Conductor) do que uma HTTP task simples.
 
+**Nota de estrutura — Data Enrichment é um sub-workflow, não uma task atômica:** a Processing Step "Data Enrichment" depende de 3 MS (Customers, Products, Pricing), que não podem disputar a mesma task do Conductor. Resolvido com o recurso nativo de **sub-workflow** do Conductor: o workflow principal dispara "Data Enrichment" como uma task do tipo `SUB_WORKFLOW`, que por sua vez é um workflow com fork-join de 3 tasks reais — uma por MS, cada um com seu próprio worker fazendo polling normalmente. O Conductor reporta ao workflow pai que a etapa terminou quando o sub-workflow completa. Isso preserva o mapeamento 1 MS = 1 worker = 1 task para os 7 MS, sem exigir um worker dedicado ou lógica de orquestração embutida em outro serviço.
+
 Status: accepted
