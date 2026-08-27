@@ -175,6 +175,9 @@ Order é aggregate root; `order_items` é tabela filha (N produtos por pedido �
 | `id` | import | — (PK, é o `orderId` do Kafka) |
 | `status`, `version` | sistema | — |
 | `customer_id` | import | — (referência opaca ao MS Customers, sem FK real — database-per-service) |
+| `source_system_code` | import | — (qual sistema de origem mandou o pedido, ex: "SAP") |
+| `source_order_number` | import | — (chave natural do pedido no sistema de origem; par com `source_system_code` deve ser `UNIQUE` — usado pra idempotência do import, ver Contrato REST) |
+| `order_created_at` | import | — (data de criação no sistema de origem — distinto de `created_at`, que é quando ESTE sistema processou) |
 | `customer_snapshot` (`@Embedded`: nome, documento, endereço de entrega) | Data Enrichment (Customers) | sim |
 | `credit_status`, `credit_hold_id` | Credit Validation | sim |
 | `stock_reservation_id` | Stock Validation | sim (atômico pro pedido inteiro — Stock Validation é hard-blocking, não há reserva parcial por item) |
@@ -192,6 +195,51 @@ Order é aggregate root; `order_items` é tabela filha (N produtos por pedido �
 | `sku`, `quantity` | import | — |
 | `product_snapshot` (`@Embedded`: nome, categoria) | Data Enrichment (Products) | sim |
 | `unit_price`, `currency` | Data Enrichment (Pricing) | sim |
+
+**`import_batches`** (ADR order/0004 — existe antes de qualquer `Order`, por isso não é campo em `orders`)
+
+| Coluna | Descrição |
+|---|---|
+| `id` | PK, é o `importBatchId` do contrato REST |
+| `status` | `PENDING` \| `PROCESSING` \| `COMPLETED` \| `COMPLETED_WITH_ERRORS` |
+| `total_rows`, `processed_rows`, `orders_created` | contadores, atualizados durante o processamento |
+| `file_name` | rastreabilidade |
+| `created_at`, `completed_at` | `completed_at` nullable até terminar |
+
+**`import_batch_row_errors`**
+
+| Coluna | Descrição |
+|---|---|
+| `id` | PK |
+| `import_batch_id` | FK |
+| `row_number` | linha da planilha onde o erro ocorreu |
+| `reason` | motivo (dado ausente, duplicata de `source_order_number`, etc.) |
+
+### Contrato REST: bulk import (ADR order/0004)
+
+Planilha denormalizada: cabeçalho (`source_system_code`, `source_order_number`, `customer_code`, `order_created_at`) repetido em toda linha de item (`sku`, `quantity`). Até ~50.000 linhas por arquivo.
+
+**`POST /imports/orders`** — multipart, campo `file` (.xlsx ou .csv)
+→ `202 Accepted`
+```json
+{ "importBatchId": "uuid", "status": "PENDING" }
+```
+
+**`GET /imports/orders/{importBatchId}`**
+→ `200 OK`
+```json
+{
+  "importBatchId": "uuid",
+  "status": "PENDING | PROCESSING | COMPLETED | COMPLETED_WITH_ERRORS",
+  "totalRows": 50000,
+  "processedRows": 50000,
+  "ordersCreated": 12000,
+  "rowErrorCount": 3
+}
+```
+Erros de linha não vêm inline (lote ruim pode ter milhares) — ficam em `import_batch_row_errors`; endpoint de listagem paginada dos erros fica como detalhe de implementação, não desenhado nesta rodada.
+
+Duplicata de `(source_system_code, source_order_number)` — dentro do mesmo lote ou contra lote anterior — vira `import_batch_row_errors`, não bloqueia o resto.
 
 ### Diagrama de sequência: fluxo compensatório
 
@@ -235,6 +283,7 @@ sequenceDiagram
 - **ADR 0001 (Order)** — optimistic locking (version) substitui Redis lock para concorrência entre Processing Steps: [`app/order/docs/adr/0001-optimistic-locking-for-order-writes.md`](../../order/docs/adr/0001-optimistic-locking-for-order-writes.md)
 - **ADR 0002 (Order)** — Debezium (WAL) em vez de outbox pattern para CDC do Order: [`app/order/docs/adr/0002-debezium-for-order-cdc.md`](../../order/docs/adr/0002-debezium-for-order-cdc.md)
 - **ADR 0003 (Order)** — Kafka (tópico não particionado por order_id) + staging + SKIP LOCKED para aplicar resultado das Processing Steps: [`app/order/docs/adr/0003-kafka-staging-skip-locked-for-processing-results.md`](../../order/docs/adr/0003-kafka-staging-skip-locked-for-processing-results.md)
+- **ADR 0004 (Order)** — bulk import assíncrono (202 Accepted) com tabela própria de status do lote: [`app/order/docs/adr/0004-async-bulk-import-with-batch-status.md`](../../order/docs/adr/0004-async-bulk-import-with-batch-status.md)
 - **ADR notifications/0001** — MS Notifications consome o tópico CDC existente em vez de evento de domínio próprio: [`app/notifications/docs/adr/0001-consume-order-cdc-topic.md`](../../notifications/docs/adr/0001-consume-order-cdc-topic.md)
 
 ### Onde entram os conceitos que motivaram o projeto
@@ -286,8 +335,10 @@ Cenários Gherkin já escritos como `.feature` executável (não só tabela ilus
 
 | ID | Scenario | Given | When | Then | Mapped FR | Arquivo |
 |---|---|---|---|---|---|---|
-| TC-01 | Import válido | Planilha .csv com 3 linhas válidas | Upload na API de importação | 3 Orders criados, status `PENDING`, workflow disparado | FR-01 | `app/order/.../bulk_import.feature` |
-| TC-02 | Import com linha inválida | Planilha com 1 linha sem cliente | Upload na API | 2 Orders criados; linha inválida reportada | FR-01 | `app/order/.../bulk_import.feature` |
+| TC-01 | Upload aceito, processa em background | Planilha .csv válida, 3 pedidos | `POST /imports/orders` | `202 Accepted` com `importBatchId`, status `PENDING` | FR-01 | `app/order/.../bulk_import.feature` |
+| TC-01b | Status reflete resultado | `importBatchId` já processado | `GET /imports/orders/{id}` | status `COMPLETED`, `ordersCreated=3`, workflow disparado por Order | FR-01 | `app/order/.../bulk_import.feature` |
+| TC-02 | Import com linha inválida | Planilha com 1 linha sem cliente | Upload + aguarda processar | status final `COMPLETED_WITH_ERRORS`, `ordersCreated=2`, erro em `import_batch_row_errors` | FR-01 | `app/order/.../bulk_import.feature` |
+| TC-02b | Pedido duplicado | Order já importado com mesmo `source_system_code`+`source_order_number` | Nova planilha repete essa chave | Linha vira erro de duplicata; nenhum Order novo criado | FR-01 | `app/order/.../bulk_import.feature` |
 | TC-03 | Concorrência sem lost update | Order v1, 2 etapas concorrentes | Enrichment + Credit Validation reportam ao mesmo tempo | Ambas as escritas preservadas, versão avança em 2 | FR-02 | `app/order/.../concurrent_processing_steps.feature` |
 | TC-04 | Conflito de versão | Order v3, 2 escritas concorrentes na mesma versão | Escritas simultâneas | Uma aplica e avança pra v4; outra recarrega v4 e reaplica | FR-02 | `app/order/.../concurrent_processing_steps.feature` |
 | TC-05 | Notificação em mudança de status | Order `PENDING`, cliente com WhatsApp | Status muda pra `PROCESSING` | Evento CDC publicado; WhatsApp enviado | FR-03, FR-04 | `app/notifications/.../status_change_notification.feature` |
@@ -347,13 +398,13 @@ Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 pa
 
 **Em aberto, não bloqueante agora:**
 6. ⬜ Provedor de WhatsApp (Twilio/Meta Cloud API/outro).
-7. ⬜ Volume esperado do import em massa — parsing streaming vs. DOM completo do `.xlsx`.
+7. ✅ Volume: até ~50.000 linhas/arquivo, planilha denormalizada (cabeçalho repetido por item) — ADR order/0004.
 8. ⬜ `COMPENSATION_FAILED` sem caminho de resolução automatizado (aceito como fora de escopo).
 9. ⬜ Direção K3s — dev loop local vs. cluster, secrets, exposição de rede, CI/CD Codeberg→K3s (seção 6 acima).
 10. ⬜ Teste de integração da Saga ponta a ponta (além do Gherkin de aceitação) — não desenhado.
 11. ✅ Dead letter — tópico `.dlt` por tópico de resultado, retry curto pra falha transitória, direto ao DLT pra falha permanente, resolução manual — ADR raiz 0005.
 12. ⬜ Mecanismo de contract test do schema Avro em CI (compatibility check antes de publish) — não desenhado.
-13. ⬜ Contrato REST do endpoint de bulk import (path, request/response shape) — surgiu desenhando o C4 L3, nunca especificado.
+13. ✅ Contrato REST do bulk import — `POST /imports/orders` (202) + `GET /imports/orders/{id}` (status/polling) — ADR order/0004, seção "Contrato REST".
 14. ⬜ Classificador de exceção transitória vs. permanente pro DLT (ADR raiz 0005 define o conceito, não os tipos concretos de exceção) — também surgiu no C4 L3.
 
 ---

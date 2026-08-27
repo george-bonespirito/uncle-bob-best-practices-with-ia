@@ -35,3 +35,11 @@ _Avoid_: line item (isolado, sem o resto do vocabulário em inglês do contexto)
 **Snapshot**:
 Cópia denormalizada de dado de outro bounded context (Customer, Product), gravada no Order/Order Item no momento da Data Enrichment. Não é fonte de verdade — Customers/Products continuam donos do dado real; o snapshot só existe pra o Order não precisar consultar outro MS depois de enriquecido.
 _Avoid_: cache (implica invalidação/expiração, que não existe aqui — snapshot é permanente, tirado uma vez)
+
+**Import Batch**:
+Um upload de planilha de import em massa — existe como entidade própria (`PENDING`/`PROCESSING`/`COMPLETED`/`COMPLETED_WITH_ERRORS`) antes de qualquer Order ser criado a partir dele. Planilha é denormalizada: cabeçalho do pedido (`source_system_code`, `source_order_number`, `customer_code`, `order_created_at`) repetido em toda linha de item. Ver [[0004-async-bulk-import-with-batch-status]].
+_Avoid_: import job (genérico, "batch" já é o termo canônico aqui), upload (é só o gatilho, não a entidade)
+
+**Source Order Number**:
+Chave natural do Order no sistema de origem (`source_system_code` + `source_order_number`) — não é o `id` interno do Order, é o identificador que o sistema que gerou o pedido usa. Par único, usado pra detectar duplicata entre lotes de import.
+_Avoid_: order number (sem qualificar "source", ambíguo com o `id` interno)
