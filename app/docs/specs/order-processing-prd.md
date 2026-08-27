@@ -86,6 +86,8 @@ Requisito NÃO atende DoR: **implementação em si** — decisão explícita da 
 
 ### C4 — Level 1: System Context
 
+Diagrama editável: [`app/docs/diagrams/c4-l1-system-context.drawio.svg`](../diagrams/c4-l1-system-context.drawio.svg). Tudo decidido nesta altitude — sem elemento indefinido.
+
 ```mermaid
 C4Context
     Person(user, "Usuário", "Sobe planilha de pedidos")
@@ -100,7 +102,7 @@ C4Context
 
 ### C4 — Level 2: Container
 
-Diagrama completo (9 MS + Orkes + Kafka/Debezium) em `app/docs/diagrams/order-processing-architecture.drawio.svg` (editável no draw.io). Fonte Mermaid equivalente:
+Diagrama editável: [`app/docs/diagrams/c4-l2-containers.drawio.svg`](../diagrams/c4-l2-containers.drawio.svg) — verde sólido = decidido, cinza pontilhado = indefinido. MS Order (com Postgres/staging/workers/Debezium), Orkes, Apicurio Registry e os tópicos Kafka estão decididos; os outros 7 MS de dado, o provedor de WhatsApp e o deploy K3s estão indefinidos (gray areas #5, #6, #9). No SVG, tópicos Kafka são desenhados como **cilindro horizontal** (fila/tópico) e Postgres/staging como **cilindro vertical** (banco/tabela) — distinção que o Mermaid abaixo não consegue expressar (não tem shape de cilindro horizontal nativo), então no bloco a seguir todos aparecem como `[(...)]`; o SVG é a fonte visual correta, este Mermaid é só estrutura:
 
 ```mermaid
 flowchart LR
@@ -155,6 +157,12 @@ flowchart LR
     CdcKafka -->|"consome, filtra status"| Notifications
     Notifications -->|"mensagem"| WhatsApp
 ```
+
+### C4 — Level 3: Component (MS Order)
+
+Diagrama editável: [`app/docs/diagrams/c4-l3-order-components.drawio.svg`](../diagrams/c4-l3-order-components.drawio.svg). Só MS Order tem L3 — é o único container com detalhe suficiente resolvido; os outros 8 MS ainda não têm nem `CONTEXT.md` (gray area #5), então um L3 deles seria invenção, não design. Consistente com `rules/docs.md`: "C4 Level 3 gerado sob demanda quando a complexidade justifica."
+
+Decidido (verde): Bulk Import Handler, `Order`/`OrderItem` (JPA, aggregate root), Repository, os 7 consumers Kafka, `order_update_event` (staging), worker pool `SKIP LOCKED`, apply com optimistic locking, Debezium connector, DLT Publisher. Indefinido (cinza pontilhado): contrato REST do endpoint de import (path/shape — nunca especificado), contract test de schema Avro em CI (gray area #12), classificador transitória-vs-permanente (o conceito está na ADR raiz 0005, os tipos de exceção específicos não).
 
 ### Modelo de dados: `orders` e `order_items`
 
@@ -345,6 +353,8 @@ Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 pa
 10. ⬜ Teste de integração da Saga ponta a ponta (além do Gherkin de aceitação) — não desenhado.
 11. ✅ Dead letter — tópico `.dlt` por tópico de resultado, retry curto pra falha transitória, direto ao DLT pra falha permanente, resolução manual — ADR raiz 0005.
 12. ⬜ Mecanismo de contract test do schema Avro em CI (compatibility check antes de publish) — não desenhado.
+13. ⬜ Contrato REST do endpoint de bulk import (path, request/response shape) — surgiu desenhando o C4 L3, nunca especificado.
+14. ⬜ Classificador de exceção transitória vs. permanente pro DLT (ADR raiz 0005 define o conceito, não os tipos concretos de exceção) — também surgiu no C4 L3.
 
 ---
 
