@@ -27,3 +27,11 @@ _Avoid_: required step, mandatory step
 **Compensating Action**:
 Ação executada por uma Processing Step compensatória (hoje: Credit Validation, Stock Validation) para desfazer seu próprio efeito colateral quando o Order é cancelado. Executada pelo mesmo MS dono do efeito colateral, sobre sua própria base — nunca por outro serviço. Ver [[0002-compensating-flow-for-order-processing]] (ADR raiz).
 _Avoid_: rollback (termo genérico demais fora do contexto de transação de banco), undo
+
+**Order Item**:
+Uma linha de produto dentro de um Order — SKU, quantidade, preço unitário, dado de produto. O Order é o aggregate root; Order Item nunca existe fora de um Order, e a concorrência (`version`) é do Order inteiro, não por item — ver [[0001-optimistic-locking-for-order-writes]].
+_Avoid_: line item (isolado, sem o resto do vocabulário em inglês do contexto), produto do pedido
+
+**Snapshot**:
+Cópia denormalizada de dado de outro bounded context (Customer, Product), gravada no Order/Order Item no momento da Data Enrichment. Não é fonte de verdade — Customers/Products continuam donos do dado real; o snapshot só existe pra o Order não precisar consultar outro MS depois de enriquecido.
+_Avoid_: cache (implica invalidação/expiração, que não existe aqui — snapshot é permanente, tirado uma vez)

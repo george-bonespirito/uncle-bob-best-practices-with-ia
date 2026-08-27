@@ -156,6 +156,35 @@ flowchart LR
     Notifications -->|"mensagem"| WhatsApp
 ```
 
+### Modelo de dados: `orders` e `order_items`
+
+Order é aggregate root; `order_items` é tabela filha (N produtos por pedido — confirmado nesta rodada de grilling, substituindo a suposição inicial de item único). Um `version` só, no Order, protege o agregado inteiro incluindo os itens (ver nota de escopo na ADR order/0001). Snapshots (`customer_snapshot`, `product_snapshot`) são colunas tipadas/`@Embedded` (Value Objects), não JSONB — consistente com Tactical DDD.
+
+**`orders`**
+
+| Coluna | Origem | Nullable até a etapa rodar |
+|---|---|---|
+| `id` | import | — (PK, é o `orderId` do Kafka) |
+| `status`, `version` | sistema | — |
+| `customer_id` | import | — (referência opaca ao MS Customers, sem FK real — database-per-service) |
+| `customer_snapshot` (`@Embedded`: nome, documento, endereço de entrega) | Data Enrichment (Customers) | sim |
+| `credit_status`, `credit_hold_id` | Credit Validation | sim |
+| `stock_reservation_id` | Stock Validation | sim (atômico pro pedido inteiro — Stock Validation é hard-blocking, não há reserva parcial por item) |
+| `route_id`, `tracking_code`, `estimated_delivery` | Route Calculation | sim |
+| `invoice_number`, `invoice_issued_at` | Invoice Generation | sim |
+| `import_batch_id` | import | — (rastreia a `bulk_import.feature` de origem) |
+| `created_at`, `updated_at` | sistema | — |
+
+**`order_items`**
+
+| Coluna | Origem | Nullable até a etapa rodar |
+|---|---|---|
+| `id` | import | — (PK) |
+| `order_id` | import | — (FK, não é aggregate próprio — ver termo Order Item no CONTEXT.md) |
+| `sku`, `quantity` | import | — |
+| `product_snapshot` (`@Embedded`: nome, categoria) | Data Enrichment (Products) | sim |
+| `unit_price`, `currency` | Data Enrichment (Pricing) | sim |
+
 ### Diagrama de sequência: fluxo compensatório
 
 Order com Credit Validation já bem-sucedida (crédito reservado) e Stock Validation falhando permanentemente por falta de estoque:
@@ -301,7 +330,7 @@ Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 pa
 
 **Bloqueantes pra implementar MS Order:**
 1. ✅ Schema das mensagens Kafka — Avro + Apicurio Registry, 7 tópicos (1 por task do Conductor), envelope comum definido — ADR raiz 0003/0004, `processing-steps-kafka-integration.md`.
-2. ⬜ Colunas reais da tabela `orders` além de `status`/`version` — o que cada Processing Step escreve exatamente, ainda não especificado campo a campo.
+2. ✅ Colunas reais de `orders` e `order_items` (tabela filha, N itens por pedido) — seção "Modelo de dados" acima; snapshots como `@Embedded`, não JSONB; `version` único cobre o agregado inteiro (nota de escopo na ADR order/0001).
 3. ✅ Retry/timeout do worker-polling — 3 tentativas, backoff exponencial (1s/5s/15s) — `processing-steps-kafka-integration.md`, seção Resilience.
 4. ✅ Idempotência da ação compensatória — `resultId` (aplicação ao Order) + `creditHoldId`/`stockReservationId` (compensação em si) — mesma seção.
 
