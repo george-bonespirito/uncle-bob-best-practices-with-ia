@@ -280,6 +280,15 @@ Projeto de aprendizado — sucesso é qualitativo, não métrica de produto:
 - Sem rollout de produção — decisão desta sessão foi manter em design até você decidir implementar.
 - Quando for implementar: começar por **MS Order** sozinho (fatia vertical), guardrails completos nele primeiro, antes de tocar nos outros 8 MS.
 
+### Direção futura: deploy on-premise (K3s) — ainda não decidido, só registrado
+
+Existe um servidor on-premise (Ubuntu Server) disponível como alvo de deploy real, pra validar fluxo de deploy e autoscaling — algo que não é possível de forma nativa só com `docker compose` local (sem HPA-equivalente; só `--scale` manual).
+
+- **Orquestrador escolhido: K3s** (não Docker Swarm) — decisão já tomada, mesmo que a execução fique pra depois. Motivo: só K3s (K8s completo, porém leve) habilita **KEDA** de verdade reagindo a lag de consumer group Kafka — Swarm exigiria `docker-flow-monitor` + Prometheus, caminho menos direto e menos documentado hoje.
+- **Brokers de apoio (Postgres, Kafka, Orkes) provisionados direto no K3s desde o início da implementação** — evita montar um setup descartável via `docker compose` local e depois refazer tudo pra migrar pro cluster. Quando a implementação começar, a primeira peça de infra é o K3s + esses 3 brokers rodando lá, não um `compose.yaml` local que depois vira obsoleto.
+- **Em aberto, não resolvido:** o loop de desenvolvimento do dia a dia (edição de código, `./gradlew check` rápido) continua local via `docker compose` (container-first, mas sem depender do cluster pra iterar) enquanto o K3s fica reservado pra validar deploy/autoscaling? Ou o dev loop também passa a mirar o K3s desde o início, sem `compose.yaml` nenhum? Isso muda o `Dockerfile`/manifests que precisam existir e não foi decidido — fica pra quando este direcionamento for puxado de verdade (grilling dedicado, como fizemos pro domínio).
+- **Também em aberto:** secrets (senha do Postgres, credencial do WhatsApp, config do Orkes), exposição de rede (se o provedor de WhatsApp exigir webhook público, o servidor on-prem só em LAN não resolve sozinho), e caminho de CI/CD do Codeberg (Forgejo Actions, não GitHub Actions — o `CLAUDE.md` global cita GitHub Actions, mas o repo deste projeto está no Codeberg) até o K3s.
+
 ---
 
 ## Histórico da sessão (rastreabilidade)
