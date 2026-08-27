@@ -348,6 +348,10 @@ Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 pa
 
 ---
 
+## Roadmap visual
+
+Evolução da série de sessões de grilling, fase a fase, com o que já foi decidido/registrado vs. direção futura vs. em aberto: [`app/docs/diagrams/project-roadmap.drawio.svg`](../diagrams/project-roadmap.drawio.svg) (editável no draw.io).
+
 ## Histórico da sessão (rastreabilidade)
 
 - Repositório inicializado em Codeberg (`torgge/uncle-bob-best-practices-with-ia`) via `tea` CLI, commit inicial com o conteúdo de `doc/transcripts/`.
