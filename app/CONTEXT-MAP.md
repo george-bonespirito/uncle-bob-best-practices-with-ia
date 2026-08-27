@@ -16,10 +16,7 @@ Sistema de referência de supply chain: um Order é criado via importação em m
 
 ## Relationships
 
-- **Order ← Customers, Products**: Orkes chama essas APIs durante a Processing Step de Data Enrichment; resultado é reportado de volta ao Order
-- **Order ← Pricing**: consumido durante Data Enrichment (ou etapa de precificação própria — ainda não confirmado)
-- **Order ← Stock**: Orkes chama durante Stock Validation
-- **Order ← Contabil**: Orkes chama durante Credit Validation
-- **Order ← Invoice**: Orkes chama durante Invoice Generation
-- **Order ← Route**: Orkes chama durante Route Calculation (envio/tracking)
+- **Orkes ↔ Customers, Products, Pricing, Stock, Contabil, Invoice, Route**: worker-polling — cada MS roda um worker que faz polling na fila de tasks do Orkes, executa a Processing Step, reporta conclusão via API do Conductor. Nenhum MS expõe endpoint HTTP alcançável pelo Orkes — ver [ADR raiz 0001](./docs/adr/0001-worker-polling-for-processing-steps.md)
+- **Customers, Products, Pricing, Stock, Contabil, Invoice, Route → Order (via Kafka)**: cada MS publica o resultado da sua Processing Step num único tópico Kafka, não particionado por `order_id` (de propósito, pra preservar concorrência real entre instâncias de MS Order). MS Order grava em staging (`order_update_event`) e aplica via pool de workers com `SKIP LOCKED` + optimistic locking — ver [order ADR 0003](./order/docs/adr/0003-kafka-staging-skip-locked-for-processing-results.md)
 - **Notifications ← Order (via Kafka)**: consome o mesmo tópico CDC do Debezium (ADR 0002), filtrando eventos onde `before.status != after.status`; acoplado ao schema da tabela `orders` — ver [notifications ADR 0001](./notifications/docs/adr/0001-consume-order-cdc-topic.md)
+- **Orkes → Contabil, Stock (compensação)**: só essas duas têm ação compensatória (efeito colateral real); disparada via worker-polling quando uma Processing Step hard-blocking falha permanentemente — ver [ADR raiz 0002](./docs/adr/0002-compensating-flow-for-order-processing.md)

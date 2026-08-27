@@ -32,6 +32,7 @@
 | FR-03 | Mudanças no Order são publicadas via CDC no Kafka | P0 | Debezium captura toda mudança em `orders` via WAL, publica no tópico Kafka — ADR 0002 |
 | FR-04 | Cliente recebe WhatsApp a cada mudança de status do Order | P1 | Mudança de `status` dispara mensagem; mudança em outro campo não dispara — ver `status_change_notification.feature`, ADR notifications/0001 |
 | FR-05 | Workflow de processamento é orquestrado pelo Orkes, self-hosted | P0 | Conductor OSS roda via `docker compose`, sem dependência de conta externa (Orkes Cloud) |
+| FR-06 | Falha permanente numa Processing Step hard-blocking cancela o Order e compensa efeito colateral já aplicado | P0 | Stock Validation/Credit Validation já bem-sucedidas são revertidas na própria base do MS dono; Order vai a `CANCELLED` — ver `compensating_flow.feature`, ADR raiz 0002 |
 
 **Priority legend:** P0 = MVP (must have), P1 = Next iteration (should have)
 
@@ -48,11 +49,16 @@ Para que o Order reflita corretamente o trabalho de todas as etapas.
 Como cliente que fez um pedido,
 Quero ser avisado via WhatsApp a cada mudança de status,
 Para acompanhar o andamento sem consultar o sistema.
+
+Como sistema,
+Quero desfazer efeito colateral já aplicado quando uma etapa posterior falha,
+Para não deixar estoque ou crédito reservados num pedido cancelado.
 ```
 
 - US-01 → FR-01
 - US-02 → FR-02, FR-03
 - US-03 → FR-04
+- US-04 → FR-06
 
 ---
 
@@ -60,9 +66,9 @@ Para acompanhar o andamento sem consultar o sistema.
 
 | # | Criterion | Status |
 |---|---|---|
-| 1 | Acceptance criteria definidos (Gherkin) | ✅ `bulk_import.feature`, `concurrent_processing_steps.feature`, `status_change_notification.feature` |
+| 1 | Acceptance criteria definidos (Gherkin) | ✅ `bulk_import.feature`, `concurrent_processing_steps.feature`, `status_change_notification.feature`, `compensating_flow.feature` |
 | 2 | Dependências identificadas | ✅ Postgres, Kafka, Debezium, Orkes/Conductor OSS, provedor WhatsApp (não escolhido) |
-| 3 | Abordagem técnica validada | ✅ via sessão de grilling — ADRs 0001/0002/notifications-0001 |
+| 3 | Abordagem técnica validada | ✅ via sessão de grilling — ADRs raiz 0001/0002, order 0001/0002/0003, notifications 0001 |
 | 4 | Cabe na arquitetura atual | N/A — é greenfield, arquitetura sendo definida por este PRD |
 | 5 | Expectativas de performance/segurança documentadas | ⚠️ Não aprofundado — projeto de aprendizado, não produção |
 
@@ -100,14 +106,16 @@ Diagrama completo (9 MS + Orkes + Kafka/Debezium) em `app/docs/diagrams/order-pr
 flowchart LR
     User["Usuário"]
 
-    subgraph OrderCtx["MS Order — dono do Pedido + Postgres"]
+    subgraph OrderCtx["MS Order — dono do Pedido + Postgres (múltiplas instâncias)"]
         Order["MS Order"]
+        Staging[("order_update_event (staging)")]
+        Workers["Workers virtual-thread — SKIP LOCKED + optimistic locking"]
         Debezium["Debezium (CDC via WAL)"]
     end
 
     Orkes["Orkes (Conductor OSS, self-hosted)"]
 
-    subgraph DataMS["Microsserviços de dado — Processing Steps"]
+    subgraph DataMS["Microsserviços de dado — Processing Steps (worker-polling)"]
         Customers["MS Customers"]
         Products["MS Products"]
         Pricing["MS Pricing"]
@@ -117,38 +125,75 @@ flowchart LR
         Route["MS Route"]
     end
 
-    Kafka[("Kafka - tópico CDC do Order")]
+    ResultsKafka[("Kafka - tópico de resultado (não particionado por order_id)")]
+    CdcKafka[("Kafka - tópico CDC do Order")]
     Notifications["MS Notifications"]
     WhatsApp[["WhatsApp (provedor externo)"]]
 
     User -->|"upload planilha"| Order
     Order -->|"dispara workflow"| Orkes
-    Orkes -->|"Data Enrichment"| Customers
-    Orkes -->|"Data Enrichment"| Products
-    Orkes -->|"Enrichment/Pricing"| Pricing
-    Orkes -->|"Credit Validation"| Contabil
-    Orkes -->|"Stock Validation"| Stock
-    Orkes -->|"Invoice Generation"| Invoice
-    Orkes -->|"Route Calculation"| Route
-    Customers -.->|"resultado"| Order
-    Products -.->|"resultado"| Order
-    Pricing -.->|"resultado"| Order
-    Contabil -.->|"resultado"| Order
-    Stock -.->|"resultado"| Order
-    Invoice -.->|"resultado"| Order
-    Route -.->|"resultado"| Order
+    Orkes <-.->|"worker-polling"| Customers
+    Orkes <-.->|"worker-polling"| Products
+    Orkes <-.->|"worker-polling"| Pricing
+    Orkes <-.->|"worker-polling"| Contabil
+    Orkes <-.->|"worker-polling"| Stock
+    Orkes <-.->|"worker-polling"| Invoice
+    Orkes <-.->|"worker-polling"| Route
+    Customers -->|"publica resultado"| ResultsKafka
+    Products -->|"publica resultado"| ResultsKafka
+    Pricing -->|"publica resultado"| ResultsKafka
+    Contabil -->|"publica resultado"| ResultsKafka
+    Stock -->|"publica resultado"| ResultsKafka
+    Invoice -->|"publica resultado"| ResultsKafka
+    Route -->|"publica resultado"| ResultsKafka
+    ResultsKafka -->|"consome"| Order
+    Order -->|"grava evento"| Staging
+    Staging -->|"reivindica via SKIP LOCKED"| Workers
+    Workers -->|"UPDATE com version"| Order
     Order -->|"WAL"| Debezium
-    Debezium -->|"eventos CDC"| Kafka
-    Kafka -->|"consome, filtra status"| Notifications
+    Debezium -->|"eventos CDC"| CdcKafka
+    CdcKafka -->|"consome, filtra status"| Notifications
     Notifications -->|"mensagem"| WhatsApp
+```
+
+### Diagrama de sequência: fluxo compensatório
+
+Order com Credit Validation já bem-sucedida (crédito reservado) e Stock Validation falhando permanentemente por falta de estoque:
+
+```mermaid
+sequenceDiagram
+    participant Orkes
+    participant Credit as MS Contabil
+    participant Stock as MS Stock
+    participant OrderKafka as Kafka (resultado)
+    participant Order as MS Order
+
+    Orkes->>Credit: poll — executa Credit Validation
+    Orkes->>Stock: poll — executa Stock Validation
+    Credit-->>Orkes: sucesso, crédito reservado
+    Credit->>OrderKafka: publica resultado (sucesso)
+    OrderKafka-->>Order: consome, aplica (SKIP LOCKED + version)
+    Stock-->>Orkes: falha permanente (sem estoque)
+    Stock->>OrderKafka: publica resultado (falha)
+    OrderKafka-->>Order: consome, aplica (SKIP LOCKED + version)
+    Order->>Order: status = COMPENSATING
+    Orkes->>Orkes: detecta falha hard-blocking, dispara compensação
+    Orkes->>Credit: poll — executa release-credit-hold
+    Credit-->>Orkes: compensação confirmada
+    Credit->>OrderKafka: publica resultado (compensado)
+    OrderKafka-->>Order: consome, aplica
+    Order->>Order: status = CANCELLED
 ```
 
 ### Glossário e decisões arquiteturais
 
 - **Glossário do domínio Order:** [`app/order/CONTEXT.md`](../../order/CONTEXT.md)
 - **Mapa de contextos (9 MS):** [`app/CONTEXT-MAP.md`](../../CONTEXT-MAP.md)
-- **ADR 0001** — optimistic locking (version) substitui Redis lock para concorrência entre Processing Steps: [`app/order/docs/adr/0001-optimistic-locking-for-order-writes.md`](../../order/docs/adr/0001-optimistic-locking-for-order-writes.md)
-- **ADR 0002** — Debezium (WAL) em vez de outbox pattern para CDC do Order: [`app/order/docs/adr/0002-debezium-for-order-cdc.md`](../../order/docs/adr/0002-debezium-for-order-cdc.md)
+- **ADR raiz 0001** — worker-polling entre Orkes e os 7 MS de dado, em vez de HTTP push: [`app/docs/adr/0001-worker-polling-for-processing-steps.md`](../adr/0001-worker-polling-for-processing-steps.md)
+- **ADR raiz 0002** — fluxo compensatório (Saga): quais steps compensam, ordem do workflow, estado `COMPENSATION_FAILED`: [`app/docs/adr/0002-compensating-flow-for-order-processing.md`](../adr/0002-compensating-flow-for-order-processing.md)
+- **ADR 0001 (Order)** — optimistic locking (version) substitui Redis lock para concorrência entre Processing Steps: [`app/order/docs/adr/0001-optimistic-locking-for-order-writes.md`](../../order/docs/adr/0001-optimistic-locking-for-order-writes.md)
+- **ADR 0002 (Order)** — Debezium (WAL) em vez de outbox pattern para CDC do Order: [`app/order/docs/adr/0002-debezium-for-order-cdc.md`](../../order/docs/adr/0002-debezium-for-order-cdc.md)
+- **ADR 0003 (Order)** — Kafka (tópico não particionado por order_id) + staging + SKIP LOCKED para aplicar resultado das Processing Steps: [`app/order/docs/adr/0003-kafka-staging-skip-locked-for-processing-results.md`](../../order/docs/adr/0003-kafka-staging-skip-locked-for-processing-results.md)
 - **ADR notifications/0001** — MS Notifications consome o tópico CDC existente em vez de evento de domínio próprio: [`app/notifications/docs/adr/0001-consume-order-cdc-topic.md`](../../notifications/docs/adr/0001-consume-order-cdc-topic.md)
 
 ### Onde entram os conceitos que motivaram o projeto
@@ -156,10 +201,11 @@ flowchart LR
 | Conceito a aprender/testar | Onde vive no design |
 |---|---|
 | Virtual threads | Ingestão em massa da planilha (MS Order); pool de workers que reivindicam `order_update_event` |
-| `SKIP LOCKED` | Fila interna `order_update_event` em MS Order — workers reivindicam evento pendente, não o Order em si (ADR 0001 explica por que `SKIP LOCKED` não serve pra proteger a linha do Order) |
+| `SKIP LOCKED` | Fila interna `order_update_event` em MS Order — workers reivindicam evento pendente, não o Order em si (ADR 0001 explica por que `SKIP LOCKED` não serve pra proteger a linha do Order diretamente; ADR 0003 explica onde ele reaparece) |
+| Concorrência entre instâncias | Tópico Kafka de resultado, deliberadamente não particionado por `order_id` — sem isso, o Kafka serializaria por Order e a race que o optimistic locking precisa resolver nunca aconteceria (ADR 0003) |
 | Optimistic locking | Coluna `version` no Order — mecanismo real que evita lost update entre Processing Steps concorrentes |
 | CDC / Debezium | MS Order publica toda mudança da tabela `orders` via WAL (ADR 0002) |
-| Kafka | Tópico CDC do Order — consumido por MS Notifications e por consumidores externos |
+| Kafka | Dois tópicos distintos: resultado das Processing Steps (MS→Order, ADR 0003) e CDC do Order (Order→Notifications/externos, ADR 0002) |
 
 ### Guardrails de qualidade (objetivo original do projeto)
 
@@ -171,7 +217,7 @@ Aplicados a cada MS conforme for implementado, começando por MS Order — mapea
 | Mutation testing | Pitest, `targetClasses=domain.*` | `./gradlew pitest` (separado, mais caro) |
 | Architecture checker | ArchUnit — camadas controller/application/domain/infra | `./gradlew check` |
 | MockK | Testes de `application`, substitui Mockito | `./gradlew check` |
-| Gherkin | Cucumber-JVM — `bulk_import.feature`, `concurrent_processing_steps.feature`, `status_change_notification.feature` | `./gradlew check` |
+| Gherkin | Cucumber-JVM — `bulk_import.feature`, `concurrent_processing_steps.feature`, `status_change_notification.feature`, `compensating_flow.feature` | `./gradlew check` |
 | QA procedure / E2E | Playwright contra HTTP real | `docker compose run --rm e2e pnpm test:e2e` (separado) |
 
 ### Key technical constraints
@@ -188,6 +234,8 @@ Aplicados a cada MS conforme for implementado, começando por MS Order — mapea
 | Escala do "import em massa" não quantificada | Design de parsing (streaming vs. DOM completo do .xlsx) pode ficar errado se volume for muito maior que o assumido | Perguntar volume esperado antes de detalhar o parser, quando chegar a hora de implementar |
 | 9 MS é escopo grande pra uma pessoa manter | Risco de abandono/inconsistência entre serviços | Implementação incremental por fatia vertical (MS Order primeiro), não big-bang — decisão já tomada nesta sessão |
 | Database-per-service + Debezium por serviço = 9x a infra de CDC se todos publicarem CDC | Complexidade operacional alta | Só MS Order tem CDC/Debezium confirmado neste PRD; os demais MS decidem sob demanda quando forem implementados |
+| `COMPENSATION_FAILED` não tem caminho de resolução automatizado | Order fica travado exigindo intervenção manual, sem ferramenta de ops desenhada para isso | Fora de escopo deste projeto de aprendizado; se algum dia for produção real, desenhar um painel/processo de retomada manual antes |
+| Compensação assume que a ação compensatória é idempotente e nunca falha parcialmente | Se MS Stock/Contabil aplicar a compensação de forma não-idempotente, retry pode duplicar o efeito (ex: devolver estoque duas vezes) | Cada MS compensatório precisa desenhar sua ação de compensação como idempotente — checar antes de implementar Stock/Contabil |
 
 ---
 
@@ -203,6 +251,10 @@ Cenários Gherkin já escritos como `.feature` executável (não só tabela ilus
 | TC-04 | Conflito de versão | Order v3, 2 escritas concorrentes na mesma versão | Escritas simultâneas | Uma aplica e avança pra v4; outra recarrega v4 e reaplica | FR-02 | `app/order/.../concurrent_processing_steps.feature` |
 | TC-05 | Notificação em mudança de status | Order `PENDING`, cliente com WhatsApp | Status muda pra `PROCESSING` | Evento CDC publicado; WhatsApp enviado | FR-03, FR-04 | `app/notifications/.../status_change_notification.feature` |
 | TC-06 | Sem notificação fora de status | Order `PROCESSING` | Campo não-status muda | Nenhuma mensagem enviada | FR-04 | `app/notifications/.../status_change_notification.feature` |
+| TC-07 | Compensação após falha posterior | Credit Validation já sucedida (crédito reservado); Stock Validation falha permanentemente | Falha detectada pelo Orkes | Order vai a `COMPENSATING`; MS Contabil recebe ação de liberar crédito; Order vai a `CANCELLED` | FR-06 | `app/order/.../compensating_flow.feature` |
+| TC-08 | Falha sem efeito colateral pendente | Nenhuma etapa compensatória com sucesso ainda | Data Enrichment falha permanentemente | Order vai direto a `CANCELLED`, sem `COMPENSATING`, sem ação compensatória | FR-06 | `app/order/.../compensating_flow.feature` |
+| TC-09 | Compensação que falha | Order `COMPENSATING`, Stock Validation pendente de compensação | Ação compensatória de estoque falha após esgotar tentativas | Order vai a `COMPENSATION_FAILED`, sem retry automático adicional | FR-06 | `app/order/.../compensating_flow.feature` |
+| TC-10 | Invoice só após as 4 hard-blocking | Enrichment, Credit Validation, Stock Validation e Route Calculation concluídas com sucesso | Orkes avalia o workflow | Invoice Generation é disparada; Order vai a `INVOICING` | FR-02, FR-06 | `app/order/.../compensating_flow.feature` |
 
 **Gap identificado nesta sessão:** `~/.claude/templates/FEATURE_SPEC.md` não tem elo pra traduzir a tabela Given/When/Then do PRD em `.feature` executável — esses arquivos foram criados diretamente para este projeto, fora do fluxo padrão de templates.
 

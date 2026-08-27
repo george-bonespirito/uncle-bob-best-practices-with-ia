@@ -1,0 +1,15 @@
+# Fluxo compensatório (Saga) para falha nas Processing Steps
+
+O Order passa por 4 Processing Steps hard-blocking em paralelo (Data Enrichment, Credit Validation, Stock Validation, Route Calculation) e, só depois de todas terem sucesso, por Invoice Generation, sequencial e por último. Duas dessas etapas têm efeito colateral real num serviço próprio (database-per-service): Credit Validation pode reservar/bloquear limite de crédito no MS Contabil; Stock Validation decrementa/reserva estoque no MS Stock. Enrichment e Route Calculation não têm efeito colateral (são leitura/cálculo). Invoice Generation nunca precisa de compensação, por desenho — só roda depois que as 4 anteriores já tiveram sucesso confirmado.
+
+Decidimos:
+
+1. **Ordem do workflow**: fork-join de Enrichment + Credit Validation + Stock Validation + Route Calculation; as 4 são hard-blocking (falha permanente de qualquer uma cancela o Order, mesmo as sem efeito colateral). Só com as 4 concluídas com sucesso o Orkes dispara Invoice Generation.
+2. **Compensação**: se qualquer uma das 4 falhar permanentemente (após esgotar retry), o Orkes invoca a ação compensatória de cada etapa que **já tinha reportado sucesso** entre Credit Validation e Stock Validation (nenhuma, uma, ou as duas — depende do que já tinha terminado quando a falha foi detectada). A ação compensatória roda no mesmo MS dono do efeito colateral, sobre sua própria base — nunca via chamada cross-service direta a outro MS.
+3. **Transporte da compensação**: mesmo mecanismo de worker-polling já decidido para o caminho feliz (ADR raiz 0001) — cada MS compensatório registra um worker adicional para o tipo de task de compensação (ex: `release-stock-reservation`, `release-credit-hold`).
+4. **Status do Order**: `PENDING → PROCESSING → (COMPENSATING → CANCELLED) | (INVOICING → COMPLETED)`, com `COMPENSATION_FAILED` como estado terminal adicional — ver glossário completo em [`app/order/CONTEXT.md`](../../order/CONTEXT.md).
+5. **Compensação que falha**: se uma ação compensatória ela mesma falhar (ex: MS Stock indisponível na hora de liberar a reserva), o Order vai para `COMPENSATION_FAILED` após esgotar um número limitado de retries — não fica em retry infinito silencioso. Esse estado exige intervenção manual; está fora de escopo deste projeto automatizar a resolução dele.
+
+Alternativa rejeitada: permitir que Enrichment/Route Calculation sejam best-effort (não bloqueiam o Order mesmo falhando). Rejeitada porque geraria Orders com nota fiscal emitida sobre dado potencialmente incompleto — pior para o objetivo de aprendizado do que simplificar a modelagem de compensação.
+
+Status: accepted
