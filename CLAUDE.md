@@ -35,3 +35,17 @@ Saída final: markdown com header + metadata da fonte, segmentado por seção te
 
 - Mudanças em `SEG` ou `SECTION` são acopladas ao conteúdo específico de `transcript-1.txt` — não são lógica genérica. Confirme contra o `.txt` bruto ao alterar índices.
 - Novas correções de ASR (nomes errados, jargão) vão em `REPLAC`, seguindo o padrão `[regex, substituição]`.
+
+## Agent skills
+
+### Issue tracker
+
+Codeberg Issues via `tea` CLI (login `torgge`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Labels padrão do mattpocock/skills, sem renomear (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Multi-context, escopado em `app/` (não na raiz — raiz também tem `doc/transcripts/`, sem relação com o domínio Order Processing). See `docs/agents/domain.md`.
