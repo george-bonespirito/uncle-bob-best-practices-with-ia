@@ -290,6 +290,7 @@ sequenceDiagram
 - **ADR 0006 (Order)** — JPA direto em Order/OrderItem; decisões de domínio isoladas em `domain.policy` sem JPA/Spring: [`app/order/docs/adr/0006-jpa-on-aggregate-root-pure-policy-classes.md`](../../order/docs/adr/0006-jpa-on-aggregate-root-pure-policy-classes.md)
 - **ADR 0007 (Order)** — classificador de exceção pro DLT, default para permanente: [`app/order/docs/adr/0007-dlt-exception-classifier.md`](../../order/docs/adr/0007-dlt-exception-classifier.md)
 - **ADR notifications/0001** — MS Notifications consome o tópico CDC existente em vez de evento de domínio próprio: [`app/notifications/docs/adr/0001-consume-order-cdc-topic.md`](../../notifications/docs/adr/0001-consume-order-cdc-topic.md)
+- **ADR notifications/0002** — Meta Cloud API direto (não Twilio), envio via template pré-aprovado: [`app/notifications/docs/adr/0002-meta-cloud-api-for-whatsapp.md`](../../notifications/docs/adr/0002-meta-cloud-api-for-whatsapp.md)
 
 ### Onde entram os conceitos que motivaram o projeto
 
@@ -405,7 +406,7 @@ Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 pa
 5. ⬜ Nenhum MS além de Order tem `CONTEXT.md` — linguagem de domínio de Customers, Products, Pricing, Stock, Contabil, Invoice, Route, Notifications não resolvida.
 
 **Em aberto, não bloqueante agora:**
-6. ⬜ Provedor de WhatsApp (Twilio/Meta Cloud API/outro).
+6. ✅ Provedor WhatsApp — Meta Cloud API direto, envio via template pré-aprovado (exigência da Meta, não específica de provedor) — ADR notifications/0002.
 7. ✅ Volume: até ~50.000 linhas/arquivo, planilha denormalizada (cabeçalho repetido por item) — ADR order/0004.
 8. ⬜ `COMPENSATION_FAILED` sem caminho de resolução automatizado (aceito como fora de escopo).
 9. ✅ K3s — cluster real, Postgres/Kafka/Apicurio já rodando via ArgoCD; dev/test loop mira o cluster; deploy de produção via ArgoCD; WhatsApp sem exposição pública — ADR raiz 0006. Orkes no cluster ainda não existe (ação de infra, não gap de design).
