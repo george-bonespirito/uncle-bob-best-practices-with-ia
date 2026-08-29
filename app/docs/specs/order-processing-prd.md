@@ -279,11 +279,13 @@ sequenceDiagram
 - **ADR raiz 0003** — Avro + Apicurio Registry para as mensagens Kafka (resultado das steps e CDC): [`app/docs/adr/0003-avro-schema-registry-for-kafka-messages.md`](../adr/0003-avro-schema-registry-for-kafka-messages.md)
 - **ADR raiz 0004** — um tópico Kafka por task do Conductor (7, não 1), Data Enrichment é sub-workflow de 3 tasks: [`app/docs/adr/0004-one-kafka-topic-per-processing-step.md`](../adr/0004-one-kafka-topic-per-processing-step.md)
 - **ADR raiz 0005** — dead letter topic por tópico de resultado, pra falha de consumo em MS Order (distinto do retry de task do Conductor): [`app/docs/adr/0005-dead-letter-topics-for-order-consumer-failures.md`](../adr/0005-dead-letter-topics-for-order-consumer-failures.md)
+- **ADR raiz 0006** — dev/test loop mira o cluster real, deploy de produção via ArgoCD, WhatsApp sem exposição pública: [`app/docs/adr/0006-dev-loop-and-deployment-topology.md`](../adr/0006-dev-loop-and-deployment-topology.md)
 - **Integration Spec** — schema completo dos 7 tópicos de resultado, envelope, retry/idempotência: [`app/docs/specs/processing-steps-kafka-integration.md`](processing-steps-kafka-integration.md)
 - **ADR 0001 (Order)** — optimistic locking (version) substitui Redis lock para concorrência entre Processing Steps: [`app/order/docs/adr/0001-optimistic-locking-for-order-writes.md`](../../order/docs/adr/0001-optimistic-locking-for-order-writes.md)
 - **ADR 0002 (Order)** — Debezium (WAL) em vez de outbox pattern para CDC do Order: [`app/order/docs/adr/0002-debezium-for-order-cdc.md`](../../order/docs/adr/0002-debezium-for-order-cdc.md)
 - **ADR 0003 (Order)** — Kafka (tópico não particionado por order_id) + staging + SKIP LOCKED para aplicar resultado das Processing Steps: [`app/order/docs/adr/0003-kafka-staging-skip-locked-for-processing-results.md`](../../order/docs/adr/0003-kafka-staging-skip-locked-for-processing-results.md)
 - **ADR 0004 (Order)** — bulk import assíncrono (202 Accepted) com tabela própria de status do lote: [`app/order/docs/adr/0004-async-bulk-import-with-batch-status.md`](../../order/docs/adr/0004-async-bulk-import-with-batch-status.md)
+- **ADR 0005 (Order)** — mutation testing focado em 5 áreas de decisão real, threshold 80% único: [`app/order/docs/adr/0005-mutation-testing-scope-and-threshold.md`](../../order/docs/adr/0005-mutation-testing-scope-and-threshold.md)
 - **ADR notifications/0001** — MS Notifications consome o tópico CDC existente em vez de evento de domínio próprio: [`app/notifications/docs/adr/0001-consume-order-cdc-topic.md`](../../notifications/docs/adr/0001-consume-order-cdc-topic.md)
 
 ### Onde entram os conceitos que motivaram o projeto
@@ -304,7 +306,7 @@ Aplicados a cada MS conforme for implementado, começando por MS Order — mapea
 | Ferramenta do vídeo | Implementação | Gate |
 |---|---|---|
 | CRAP score (proxy) | JaCoCo (coverage) + Detekt (complexidade, threshold humano=8/agente=12) | `./gradlew check` |
-| Mutation testing | Pitest, `targetClasses=domain.*` | `./gradlew pitest` (separado, mais caro) |
+| Mutation testing | Pitest, alvo restrito a 5 áreas de decisão real (status transition, hard-blocking, decisão de compensar, conflito de version, duplicata de import), threshold 80% — ADR order/0005 | `./gradlew pitest` (separado, mais caro) |
 | Architecture checker | ArchUnit — camadas controller/application/domain/infra | `./gradlew check` |
 | MockK | Testes de `application`, substitui Mockito | `./gradlew check` |
 | Gherkin | Cucumber-JVM — `bulk_import.feature`, `concurrent_processing_steps.feature`, `status_change_notification.feature`, `compensating_flow.feature` | `./gradlew check` |
@@ -357,7 +359,7 @@ Cenários Gherkin já escritos como `.feature` executável (não só tabela ilus
 ### Definition of Done (DoD) — por MS implementado
 - [ ] `./gradlew check` verde (compile + testes + ArchUnit + Cucumber + Detekt + JaCoCo)
 - [ ] `./gradlew integrationTest` verde (quando aplicável — repositório real)
-- [ ] `./gradlew pitest` rodado, mutation score revisado (não necessariamente 100%, mas sem mutante óbvio ignorado)
+- [ ] `./gradlew pitest` rodado nas 5 áreas de decisão real, mutation score ≥ 80% (ADR order/0005)
 - [ ] `docker compose run --rm e2e pnpm test:e2e` verde
 - [ ] ADRs relevantes escritos/atualizados
 - [ ] `CONTEXT.md` do contexto atualizado se linguagem nova surgiu
@@ -372,14 +374,17 @@ Projeto de aprendizado — sucesso é qualitativo, não métrica de produto:
 - Sem rollout de produção — decisão desta sessão foi manter em design até você decidir implementar.
 - Quando for implementar: começar por **MS Order** sozinho (fatia vertical), guardrails completos nele primeiro, antes de tocar nos outros 8 MS.
 
-### Direção futura: deploy on-premise (K3s) — ainda não decidido, só registrado
+### Deploy on-premise (K3s) — infra real, parcialmente pronta
 
-Existe um servidor on-premise (Ubuntu Server) disponível como alvo de deploy real, pra validar fluxo de deploy e autoscaling — algo que não é possível de forma nativa só com `docker compose` local (sem HPA-equivalente; só `--scale` manual).
+Atualizado em 2026-08-29: deixou de ser "direção futura, não decidida" — o cluster **já existe e está rodando**, gerenciado via GitOps/ArgoCD. Repo: [`bonespirito-cluster-k3s-infra`](https://codeberg.org/torgge/bonespirito-cluster-k3s-infra) (privado). Ver memória de referência para detalhes completos (versões de chart, gotchas de adoção).
 
-- **Orquestrador escolhido: K3s** (não Docker Swarm) — decisão já tomada, mesmo que a execução fique pra depois. Motivo: só K3s (K8s completo, porém leve) habilita **KEDA** de verdade reagindo a lag de consumer group Kafka — Swarm exigiria `docker-flow-monitor` + Prometheus, caminho menos direto e menos documentado hoje.
-- **Brokers de apoio (Postgres, Kafka, Orkes) provisionados direto no K3s desde o início da implementação** — evita montar um setup descartável via `docker compose` local e depois refazer tudo pra migrar pro cluster. Quando a implementação começar, a primeira peça de infra é o K3s + esses 3 brokers rodando lá, não um `compose.yaml` local que depois vira obsoleto.
-- **Em aberto, não resolvido:** o loop de desenvolvimento do dia a dia (edição de código, `./gradlew check` rápido) continua local via `docker compose` (container-first, mas sem depender do cluster pra iterar) enquanto o K3s fica reservado pra validar deploy/autoscaling? Ou o dev loop também passa a mirar o K3s desde o início, sem `compose.yaml` nenhum? Isso muda o `Dockerfile`/manifests que precisam existir e não foi decidido — fica pra quando este direcionamento for puxado de verdade (grilling dedicado, como fizemos pro domínio).
-- **Também em aberto:** secrets (senha do Postgres, credencial do WhatsApp, config do Orkes), exposição de rede (se o provedor de WhatsApp exigir webhook público, o servidor on-prem só em LAN não resolve sozinho), e caminho de CI/CD do Codeberg (Forgejo Actions, não GitHub Actions — o `CLAUDE.md` global cita GitHub Actions, mas o repo deste projeto está no Codeberg) até o K3s.
+- **Já rodando, `Synced`/`Healthy`**: PostgreSQL (chart `postgresql` 18.8.13), Kafka/KRaft (chart `kafka` 32.4.3, via `bitnamilegacy`), **Apicurio Registry** (NodePort `30080`) — confirma na prática a ADR raiz 0003 (Avro + Apicurio), que foi decidida antes de qualquer infra existir.
+- **Mecanismo de deploy confirmado**: App of Apps — novo serviço = commitar `apps/<nome>-app.yaml` no repo de infra, ArgoCD sincroniza sozinho (`selfHeal: true`, sem `kubectl apply` manual). Resolve o "caminho de CI/CD até o K3s" — não é Forgejo Actions fazendo o deploy, é GitOps puro (Git é a fonte da verdade, ArgoCD reconcilia).
+- **Padrão de secrets estabelecido**: nunca versionar secret, nem placeholder — manifests só referenciam (`existingSecret`/`secretKeyRef`); Secret real criado fora do Git. External Secrets Operator é fase 2 do repo de infra, ainda não implementado — Order Processing deve seguir o mesmo padrão quando chegar a hora (senha do Postgres do MS Order, credencial do WhatsApp, etc.).
+- **Ainda não existe**: nenhuma Application do **Orkes/Conductor** no repo de infra (a decisão de self-hosted já era nossa — ADR raiz K3s antiga — só falta a peça de infra). Nenhuma Application do MS Order em si, nem definição de onde a imagem Docker do MS Order seria construída/publicada (registry não definido).
+- **Dev/test loop e deploy — resolvido (ADR raiz 0006)**: MS Order roda em container local pra teste/iteração (`docker compose run --rm app ./gradlew check`), conectando nos brokers reais do cluster (sem duplicar Postgres/Kafka/Apicurio local). Deploy de produção é distinto: MS Order roda de verdade no cluster como Application do ArgoCD, mesmo padrão App of Apps dos brokers.
+- **WhatsApp — resolvido (ADR raiz 0006)**: MS Notifications só envia (chamada de saída), sem webhook de entrada no escopo atual — não precisa de exposição pública; NodePort/LAN já basta.
+- **Novo, em aberto**: onde a imagem Docker do MS Order é construída e publicada, pra o ArgoCD ter o que referenciar (registry não definido — ver partes cinzentas #18).
 
 ---
 
@@ -400,12 +405,16 @@ Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 pa
 6. ⬜ Provedor de WhatsApp (Twilio/Meta Cloud API/outro).
 7. ✅ Volume: até ~50.000 linhas/arquivo, planilha denormalizada (cabeçalho repetido por item) — ADR order/0004.
 8. ⬜ `COMPENSATION_FAILED` sem caminho de resolução automatizado (aceito como fora de escopo).
-9. ⬜ Direção K3s — dev loop local vs. cluster, secrets, exposição de rede, CI/CD Codeberg→K3s (seção 6 acima).
+9. ✅ K3s — cluster real, Postgres/Kafka/Apicurio já rodando via ArgoCD; dev/test loop mira o cluster; deploy de produção via ArgoCD; WhatsApp sem exposição pública — ADR raiz 0006. Orkes no cluster ainda não existe (ação de infra, não gap de design).
 10. ⬜ Teste de integração da Saga ponta a ponta (além do Gherkin de aceitação) — não desenhado.
 11. ✅ Dead letter — tópico `.dlt` por tópico de resultado, retry curto pra falha transitória, direto ao DLT pra falha permanente, resolução manual — ADR raiz 0005.
 12. ⬜ Mecanismo de contract test do schema Avro em CI (compatibility check antes de publish) — não desenhado.
 13. ✅ Contrato REST do bulk import — `POST /imports/orders` (202) + `GET /imports/orders/{id}` (status/polling) — ADR order/0004, seção "Contrato REST".
 14. ⬜ Classificador de exceção transitória vs. permanente pro DLT (ADR raiz 0005 define o conceito, não os tipos concretos de exceção) — também surgiu no C4 L3.
+15. ✅ Mutation testing revisitado contra o domínio real — 5 áreas de decisão, threshold 80% — ADR order/0005.
+16. ⬜ Threshold de coverage do JaCoCo (%) nunca foi fixado pro domínio atual — só o Detekt (8/12) foi reconfirmado; achado grillando #15.
+17. ⬜ Inconsistência achada no C4 L3: `Order`/`OrderItem` aparecem como "JPA, aggregate root" dentro de "Domínio", mas a regra original do ArchUnit (do plano pré-pivô) dizia domain não pode depender de `jakarta.persistence` — nunca reconfirmado se essa regra ainda vale pro domínio atual.
+18. ⬜ Onde a imagem Docker do MS Order é construída e publicada (registry) pra o ArgoCD referenciar — achado grillando #9, ADR raiz 0006.
 
 ---
 
