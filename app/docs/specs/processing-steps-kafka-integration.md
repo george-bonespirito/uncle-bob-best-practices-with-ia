@@ -46,7 +46,7 @@ Ver diagrama de sequência do fluxo compensatório em `app/docs/specs/order-proc
 - **Timeout/retry do worker-polling (task do Conductor):** 3 tentativas, backoff exponencial (1s / 5s / 15s). Esgotadas as tentativas, a task é marcada como falha permanente — dispara compensação se a Processing Step for hard-blocking (ADR raiz 0002).
 - **Idempotência de aplicação ao Order:** `resultId` é a chave — MS Order (ou o worker `SKIP LOCKED`) descarta silenciosamente uma mensagem com `resultId` já aplicado, sem erro.
 - **Idempotência de compensação:** `creditHoldId`/`stockReservationId` são as chaves — a ação compensatória (`release-credit-hold`, `release-stock-reservation`) recebe o ID da reserva/hold a liberar; liberar um ID já liberado é no-op no MS dono (Contabil/Stock), não erro. Resolve a lacuna de idempotência apontada como risco no PRD.
-- **Dead letter:** um tópico `.dlt` por tópico de resultado (ex: `order.stock-validation.result.dlt`) — ver ADR raiz 0005. Falha transitória tenta retry curto antes; falha permanente (schema inválido, `orderId` inexistente) vai direto pro DLT. Resolução manual, fora de escopo automatizar.
+- **Dead letter:** um tópico `.dlt` por tópico de resultado (ex: `order.stock-validation.result.dlt`) — ver ADR raiz 0005. Classificador transitória/permanente com default para permanente (ADR order/0007): só `TransientDataAccessException` e timeout do Apicurio contam como transitório (retry curto, 3x, 200ms/500ms/1s); tudo mais — deserialização Avro, `orderId` inexistente, exceção não listada — vai direto ao DLT. Resolução manual, fora de escopo automatizar.
 
 ## Testing
 
