@@ -280,7 +280,8 @@ sequenceDiagram
 - **ADR raiz 0004** — um tópico Kafka por task do Conductor (7, não 1), Data Enrichment é sub-workflow de 3 tasks: [`app/docs/adr/0004-one-kafka-topic-per-processing-step.md`](../adr/0004-one-kafka-topic-per-processing-step.md)
 - **ADR raiz 0005** — dead letter topic por tópico de resultado, pra falha de consumo em MS Order (distinto do retry de task do Conductor): [`app/docs/adr/0005-dead-letter-topics-for-order-consumer-failures.md`](../adr/0005-dead-letter-topics-for-order-consumer-failures.md)
 - **ADR raiz 0006** — dev/test loop mira o cluster real, deploy de produção via ArgoCD, WhatsApp sem exposição pública: [`app/docs/adr/0006-dev-loop-and-deployment-topology.md`](../adr/0006-dev-loop-and-deployment-topology.md)
-- **ADR raiz 0007** — registry self-hosted no cluster + Woodpecker CI com agente self-hosted (alcança registry LAN-only): [`app/docs/adr/0007-image-registry-and-ci-topology.md`](../adr/0007-image-registry-and-ci-topology.md)
+- **ADR raiz 0007** — Codeberg Container Registry (verificado, real) + Woodpecker CI com runner compartilhado, revisada em 2026-08-30 (registry self-hosted + agente self-hosted revertidos): [`app/docs/adr/0007-image-registry-and-ci-topology.md`](../adr/0007-image-registry-and-ci-topology.md)
+- **ADR 0008 (Order)** — pipeline completo commit→deploy: Woodpecker builda, publica (tag=SHA), faz bump do manifesto no repo de infra; ArgoCD sincroniza sozinho; `imagePullSecret` pro pull (registry exige auth mesmo em repo público, verificado): [`app/order/docs/adr/0008-full-cicd-pipeline-commit-to-deploy.md`](../../order/docs/adr/0008-full-cicd-pipeline-commit-to-deploy.md). Diagrama de sequência (quem fala com quem): [`app/docs/diagrams/cicd-pipeline-sequence.drawio.svg`](../diagrams/cicd-pipeline-sequence.drawio.svg). Flowchart do processo, com pontos de falha (gate reprovado, pull falho): [`app/docs/diagrams/cicd-pipeline-flow.drawio.svg`](../diagrams/cicd-pipeline-flow.drawio.svg)
 - **Integration Spec** — schema completo dos 7 tópicos de resultado, envelope, retry/idempotência: [`app/docs/specs/processing-steps-kafka-integration.md`](processing-steps-kafka-integration.md)
 - **ADR 0001 (Order)** — optimistic locking (version) substitui Redis lock para concorrência entre Processing Steps: [`app/order/docs/adr/0001-optimistic-locking-for-order-writes.md`](../../order/docs/adr/0001-optimistic-locking-for-order-writes.md)
 - **ADR 0002 (Order)** — Debezium (WAL) em vez de outbox pattern para CDC do Order: [`app/order/docs/adr/0002-debezium-for-order-cdc.md`](../../order/docs/adr/0002-debezium-for-order-cdc.md)
@@ -388,7 +389,7 @@ Atualizado em 2026-08-29: deixou de ser "direção futura, não decidida" — o 
 - **Ainda não existe**: nenhuma Application do **Orkes/Conductor** no repo de infra (a decisão de self-hosted já era nossa — ADR raiz K3s antiga — só falta a peça de infra). Nenhuma Application do MS Order em si, nem definição de onde a imagem Docker do MS Order seria construída/publicada (registry não definido).
 - **Dev/test loop e deploy — resolvido (ADR raiz 0006)**: MS Order roda em container local pra teste/iteração (`docker compose run --rm app ./gradlew check`), conectando nos brokers reais do cluster (sem duplicar Postgres/Kafka/Apicurio local). Deploy de produção é distinto: MS Order roda de verdade no cluster como Application do ArgoCD, mesmo padrão App of Apps dos brokers.
 - **WhatsApp — resolvido (ADR raiz 0006)**: MS Notifications só envia (chamada de saída), sem webhook de entrada no escopo atual — não precisa de exposição pública; NodePort/LAN já basta.
-- **Resolvido (ADR raiz 0007)**: imagem Docker publicada num registry self-hosted no cluster (`registry:2`, mais uma Application no repo de infra); build/publish via Woodpecker CI (Codeberg) com agente self-hosted no cluster — necessário pro CI conseguir alcançar o registry LAN-only.
+- **Resolvido (ADR raiz 0007, revisada 2026-08-30)**: imagem Docker publicada no **Codeberg Container Registry** (verificado real via `curl` contra `codeberg.org/v2/` — responde como Docker Registry API v2), não self-hosted no cluster. Build/publish via Woodpecker CI com **runner compartilhado** do Codeberg — sem agente self-hosted, sem exposição de rede a resolver (registry público, conexões de saída em ambas as pontas).
 
 ---
 
@@ -418,7 +419,7 @@ Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 pa
 15. ✅ Mutation testing revisitado contra o domínio real — 5 áreas de decisão, threshold 80% — ADR order/0005.
 16. ✅ Threshold JaCoCo — `LINE ≥ 80%`, `BRANCH ≥ 70%`, único sem split humano/agente — tabela de guardrails acima.
 17. ✅ Domain/JPA — `Order`/`OrderItem` levam JPA direto (sem mapper); decisões de negócio isoladas em `domain.policy.*`, sem JPA/Spring; regra ArchUnit revisada, escopada a `domain.policy` — ADR order/0006.
-18. ✅ Registry self-hosted no cluster (`registry:2`) + Woodpecker CI com agente self-hosted (alcança o registry LAN-only) — ADR raiz 0007.
+18. ✅ Codeberg Container Registry (verificado real) + Woodpecker CI com runner compartilhado — ADR raiz 0007, revisada 2026-08-30 (self-hosted revertido).
 
 ---
 
