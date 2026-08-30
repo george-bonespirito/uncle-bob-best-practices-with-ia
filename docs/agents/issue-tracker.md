@@ -7,7 +7,7 @@ Issues for this repo live as Codeberg Issues (Forgejo). Remote is `torgge/uncle-
 - **Create an issue**: `tea issues create --title "..." --description "..."`. Repo is inferred from cwd when run inside this clone; pass `--repo torgge/uncle-bob-best-practices-with-ia` explicitly if needed.
 - **Read an issue**: `tea issues <index> --comments`.
 - **List issues**: `tea issues list --state open` (add `--labels`, `--keyword`, `--milestones` filters as needed).
-- **Comment on an issue**: `tea comment <index> "..."`.
+- **Comment on an issue**: `tea comment <index> "..."`. **Known bug**: `tea comment` hangs indefinitely on a multi-line body (confirmed on `tea` v0.14.1) — single-line bodies post instantly, any embedded newline hangs regardless of length or content. `tea issues edit --description "..."` handles multi-line fine, so the bug is specific to `comment`, not multi-line arg passing in general. Workaround: split a multi-paragraph comment into several single-line `tea comment` calls, one per paragraph — don't retry the multi-line form, it will hang again.
 - **Apply / remove labels**: `tea issues edit <index> --add-labels "..."` / `--remove-labels "..."`.
 - **Close**: `tea issues close <index>`. **Reopen**: `tea issues reopen <index>`.
 
@@ -32,4 +32,4 @@ Used by `/wayfinder`. Forgejo/Codeberg has no GitHub-style native sub-issue link
 - **Blocking**: a `Blocked by: #<n>, #<n>` line near the top of the child body (no native dependency API here). A ticket is unblocked when every blocker listed is closed.
 - **Frontier query**: `tea issues list --state open --labels wayfinder:<type>`, drop any with an open blocker referenced in the body or an assignee already set; first in map order wins.
 - **Claim**: `tea issues edit <n> --add-assignees <username>` — the session's first write.
-- **Resolve**: `tea comment <n> "<answer>"`, then `tea issues close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
+- **Resolve**: `tea comment <n> "<answer>"` (split into single-line calls if the answer has multiple paragraphs — see the `tea comment` bug note above), then `tea issues close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
