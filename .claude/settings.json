@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command' | { read -r c; if echo \"$c\" | grep -q 'bonespirito-cluster-k3s-infra' && echo \"$c\" | grep -Eq 'git[^a-zA-Z0-9_-]+.*(commit|push)'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Bloqueado: commit/push no repo de infra (bonespirito-cluster-k3s-infra) - dominio do claude-infra, nao desta sessao. Relay a proposta via SendMessage em vez de escrever aqui.\"}}'; fi; } 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command' | { read -r c; if echo \"$c\" | grep -q 'tea issues create'; then echo '{\"systemMessage\":\"Lembrete: rode tea issues list --keyword antes de criar, pra evitar duplicata.\",\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\",\"additionalContext\":\"Antes de criar esta issue, confirme que nao existe uma similar: tea issues list --keyword <termo relevante> (ou --labels wayfinder:map se for um mapa).\"}}'; fi; } 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}
