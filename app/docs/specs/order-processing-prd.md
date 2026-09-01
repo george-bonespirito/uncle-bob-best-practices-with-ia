@@ -420,7 +420,7 @@ Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 pa
 16. ✅ Threshold JaCoCo — `LINE ≥ 80%`, `BRANCH ≥ 70%`, único sem split humano/agente — tabela de guardrails acima.
 17. ✅ Domain/JPA — `Order`/`OrderItem` levam JPA direto (sem mapper); decisões de negócio isoladas em `domain.policy.*`, sem JPA/Spring; regra ArchUnit revisada, escopada a `domain.policy` — ADR order/0006.
 18. ✅ Codeberg Container Registry (verificado real) + Woodpecker CI com runner compartilhado — ADR raiz 0007, revisada 2026-08-30 (self-hosted revertido).
-19. 🟡 Quem faz o bump da tag no manifesto do repo de infra (commit direto do CI vs. ArgoCD Image Updater) — decisão do `claude-infra` (dono da infra), pendente. Requisitos já enviados: imagem `ms-order`, pública, token escopado — ADR order/0008.
+19. ✅ Quem faz o bump da tag no manifesto do repo de infra — commit direto do CI, decidido pelo `claude-infra` — ADR-004 do repo de infra (commit `ad8d16d`), ADR order/0008 atualizada em espelho. `imagePullSecret` corrigido: não é mais requisito fechado (teste real: `404` vs `401` no registry).
 
 ---
 
