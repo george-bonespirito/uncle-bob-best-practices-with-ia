@@ -133,6 +133,8 @@ flowchart LR
     WhatsApp[["WhatsApp (provedor externo)"]]
 
     User -->|"upload planilha"| Order
+    Order -->|"valida customer_id em lote (REST, cache em memória)"| Customers
+    Notifications -->|"busca WhatsApp Phone (REST)"| Customers
     Order -->|"dispara workflow"| Orkes
     Orkes <-.->|"worker-polling"| Customers
     Orkes <-.->|"worker-polling"| Products
@@ -174,11 +176,11 @@ Order é aggregate root; `order_items` é tabela filha (N produtos por pedido �
 |---|---|---|
 | `id` | import | — (PK, é o `orderId` do Kafka) |
 | `status`, `version` | sistema | — |
-| `customer_id` | import | — (referência opaca ao MS Customers, sem FK real — database-per-service) |
+| `customer_id` | import | — (identidade do Customer emitida pelo MS Customers, trazida pela planilha; referência sem FK real — database-per-service) |
 | `source_system_code` | import | — (qual sistema de origem mandou o pedido, ex: "SAP") |
 | `source_order_number` | import | — (chave natural do pedido no sistema de origem; par com `source_system_code` deve ser `UNIQUE` — usado pra idempotência do import, ver Contrato REST) |
 | `order_created_at` | import | — (data de criação no sistema de origem — distinto de `created_at`, que é quando ESTE sistema processou) |
-| `customer_snapshot` (`@Embedded`: nome, documento, endereço de entrega) | Data Enrichment (Customers) | sim |
+| `customer_snapshot` (`@Embedded`: nome legal, documento, endereço de entrega padrão) | Data Enrichment (Customers) | sim |
 | `credit_status`, `credit_hold_id` | Credit Validation | sim |
 | `stock_reservation_id` | Stock Validation | sim (atômico pro pedido inteiro — Stock Validation é hard-blocking, não há reserva parcial por item) |
 | `route_id`, `tracking_code`, `estimated_delivery` | Route Calculation | sim |
@@ -201,6 +203,7 @@ Order é aggregate root; `order_items` é tabela filha (N produtos por pedido �
 | Coluna | Descrição |
 |---|---|
 | `id` | PK, é o `importBatchId` do contrato REST |
+| `file_fingerprint` | hash do conteúdo do arquivo, `UNIQUE` — reenvio do mesmo arquivo é recusado no upload (`409`), sem criar batch |
 | `status` | `PENDING` \| `PROCESSING` \| `COMPLETED` \| `COMPLETED_WITH_ERRORS` |
 | `total_rows`, `processed_rows`, `orders_created` | contadores, atualizados durante o processamento |
 | `file_name` | rastreabilidade |
@@ -217,13 +220,14 @@ Order é aggregate root; `order_items` é tabela filha (N produtos por pedido �
 
 ### Contrato REST: bulk import (ADR order/0004)
 
-Planilha denormalizada: cabeçalho (`source_system_code`, `source_order_number`, `customer_code`, `order_created_at`) repetido em toda linha de item (`sku`, `quantity`). Até ~50.000 linhas por arquivo.
+Planilha denormalizada: cabeçalho (`source_system_code`, `source_order_number`, `customer_id`, `order_created_at`) repetido em toda linha de item (`sku`, `quantity`). Até ~50.000 linhas por arquivo. O `customer_id` é a identidade emitida pelo MS Customers — o sistema de origem precisa conhecê-la; não existe código alternativo por sistema de origem nem etapa de conversão (ver [Customers CONTEXT.md](../../customers/CONTEXT.md)).
 
 **`POST /imports/orders`** — multipart, campo `file` (.xlsx ou .csv)
 → `202 Accepted`
 ```json
 { "importBatchId": "uuid", "status": "PENDING" }
 ```
+→ `409 Conflict` — arquivo com o mesmo Import Fingerprint já foi importado; devolve o `importBatchId` do lote original e nenhum batch novo é criado.
 
 **`GET /imports/orders/{importBatchId}`**
 → `200 OK`
@@ -239,7 +243,9 @@ Planilha denormalizada: cabeçalho (`source_system_code`, `source_order_number`,
 ```
 Erros de linha não vêm inline (lote ruim pode ter milhares) — ficam em `import_batch_row_errors`; endpoint de listagem paginada dos erros fica como detalhe de implementação, não desenhado nesta rodada.
 
-Duplicata de `(source_system_code, source_order_number)` — dentro do mesmo lote ou contra lote anterior — vira `import_batch_row_errors`, não bloqueia o resto.
+Duplicata de `(source_system_code, source_order_number)` — dentro do mesmo lote ou contra lote anterior — vira `import_batch_row_errors`, não bloqueia o resto. São duas camadas distintas de idempotência: o Import Fingerprint pega o reenvio do arquivo inteiro, o par acima pega o pedido repetido entre arquivos diferentes.
+
+**Validação de `customer_id` antes do workflow:** o import consulta o MS Customers em lote, com os IDs distintos do arquivo, antes de criar Order — Customer Registry Cache em memória no MS Order absorve a repetição entre imports (só existência, só resultado positivo, sem infra externa). `customer_id` inexistente vira `import_batch_row_errors` e recusa **a linha**, nunca o lote. Customers indisponível **não** recusa nada: os Orders são criados e a validação real cai pra Customer Enrichment, pra que um MS fora do ar não vire perda de venda. Contrato e semântica de falha: [`customers-api-contract.md`](./customers-api-contract.md).
 
 ### Diagrama de sequência: fluxo compensatório
 
@@ -273,6 +279,7 @@ sequenceDiagram
 ### Glossário e decisões arquiteturais
 
 - **Glossário do domínio Order:** [`app/order/CONTEXT.md`](../../order/CONTEXT.md)
+- **Glossário do domínio Customers:** [`app/customers/CONTEXT.md`](../../customers/CONTEXT.md)
 - **Mapa de contextos (9 MS):** [`app/CONTEXT-MAP.md`](../../CONTEXT-MAP.md)
 - **ADR raiz 0001** — worker-polling entre Orkes e os 7 MS de dado, em vez de HTTP push: [`app/docs/adr/0001-worker-polling-for-processing-steps.md`](../adr/0001-worker-polling-for-processing-steps.md)
 - **ADR raiz 0002** — fluxo compensatório (Saga): quais steps compensam, ordem do workflow, estado `COMPENSATION_FAILED`: [`app/docs/adr/0002-compensating-flow-for-order-processing.md`](../adr/0002-compensating-flow-for-order-processing.md)
@@ -290,8 +297,12 @@ sequenceDiagram
 - **ADR 0005 (Order)** — mutation testing focado em 5 áreas de decisão real, threshold 80% único: [`app/order/docs/adr/0005-mutation-testing-scope-and-threshold.md`](../../order/docs/adr/0005-mutation-testing-scope-and-threshold.md)
 - **ADR 0006 (Order)** — JPA direto em Order/OrderItem; decisões de domínio isoladas em `domain.policy` sem JPA/Spring: [`app/order/docs/adr/0006-jpa-on-aggregate-root-pure-policy-classes.md`](../../order/docs/adr/0006-jpa-on-aggregate-root-pure-policy-classes.md)
 - **ADR 0007 (Order)** — classificador de exceção pro DLT, default para permanente: [`app/order/docs/adr/0007-dlt-exception-classifier.md`](../../order/docs/adr/0007-dlt-exception-classifier.md)
+- **ADR 0009 (Order)** — validação de `customer_id` no import, recusa por linha e não por lote; indisponibilidade do Customers não recusa nada; `Import Fingerprint` recusa reenvio do mesmo arquivo: [`app/order/docs/adr/0009-validate-customer-at-import-degrade-on-outage.md`](../../order/docs/adr/0009-validate-customer-at-import-degrade-on-outage.md)
+- **ADR 0010 (Order)** — `Customer Registry Cache` em memória (Valkey rejeitado), só existência, só entrada positiva: [`app/order/docs/adr/0010-in-memory-customer-existence-cache.md`](../../order/docs/adr/0010-in-memory-customer-existence-cache.md)
+- **Integration Spec** — contrato síncrono do MS Customers (existência em lote pro import, contato pro envio) e semântica de falha: [`app/docs/specs/customers-api-contract.md`](customers-api-contract.md)
 - **ADR notifications/0001** — MS Notifications consome o tópico CDC existente em vez de evento de domínio próprio: [`app/notifications/docs/adr/0001-consume-order-cdc-topic.md`](../../notifications/docs/adr/0001-consume-order-cdc-topic.md)
 - **ADR notifications/0002** — Meta Cloud API direto (não Twilio), envio via template pré-aprovado: [`app/notifications/docs/adr/0002-meta-cloud-api-for-whatsapp.md`](../../notifications/docs/adr/0002-meta-cloud-api-for-whatsapp.md)
+- **ADR notifications/0003** — WhatsApp Phone buscado no Customers na hora do envio, nunca copiado pro `Snapshot` (fecha o gap do número que não existia em lugar nenhum): [`app/notifications/docs/adr/0003-lookup-contact-at-send-time.md`](../../notifications/docs/adr/0003-lookup-contact-at-send-time.md)
 
 ### Onde entram os conceitos que motivaram o projeto
 
@@ -332,6 +343,7 @@ Aplicados a cada MS conforme for implementado, começando por MS Order — mapea
 | 9 MS é escopo grande pra uma pessoa manter | Risco de abandono/inconsistência entre serviços | Implementação incremental por fatia vertical (MS Order primeiro), não big-bang — decisão já tomada nesta sessão |
 | Database-per-service + Debezium por serviço = 9x a infra de CDC se todos publicarem CDC | Complexidade operacional alta | Só MS Order tem CDC/Debezium confirmado neste PRD; os demais MS decidem sob demanda quando forem implementados |
 | `COMPENSATION_FAILED` não tem caminho de resolução automatizado | Order fica travado exigindo intervenção manual, sem ferramenta de ops desenhada para isso | Fora de escopo deste projeto de aprendizado; se algum dia for produção real, desenhar um painel/processo de retomada manual antes |
+| MS Customers vira ponto único de falha síncrono: import do Order e envio de Notifications dependem dele em runtime | Customers fora do ar degrada import (validação adiada pra Enrichment) e para notificação (DLT) | Degradação deliberada em vez de bloqueio no import; `Customer Registry Cache` reduz chamadas; semântica de falha fixada em `customers-api-contract.md` |
 | Compensação assume que a ação compensatória é idempotente e nunca falha parcialmente | Se MS Stock/Contabil aplicar a compensação de forma não-idempotente, retry pode duplicar o efeito (ex: devolver estoque duas vezes) | Cada MS compensatório precisa desenhar sua ação de compensação como idempotente — checar antes de implementar Stock/Contabil |
 
 ---
@@ -404,7 +416,7 @@ Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 pa
 4. ✅ Idempotência da ação compensatória — `resultId` (aplicação ao Order) + `creditHoldId`/`stockReservationId` (compensação em si) — mesma seção.
 
 **Bloqueantes pros outros 8 MS:**
-5. ⬜ Nenhum MS além de Order tem `CONTEXT.md` — linguagem de domínio de Customers, Products, Pricing, Stock, Contabil, Invoice, Route, Notifications não resolvida.
+5. 🟡 `CONTEXT.md` por MS de dado — [Customers resolvido](../../customers/CONTEXT.md): identidade `customer_id` sem conversão, `Document` como VO com `Customer Type` derivado, `Delivery Address` com default obrigatório, cadastro sem status, `Customer Not Found` como única falha de negócio. Trouxe junto o Customers Lookup síncrono ([`customers-api-contract.md`](./customers-api-contract.md)) e 3 termos novos no contexto Order (`Import Fingerprint`, `Customer Registry Cache`, `Rejected Order Row`). Faltam Products, Pricing, Stock, Contabil, Invoice, Route, Notifications.
 
 **Em aberto, não bloqueante agora:**
 6. ✅ Provedor WhatsApp — Meta Cloud API direto, envio via template pré-aprovado (exigência da Meta, não específica de provedor) — ADR notifications/0002.

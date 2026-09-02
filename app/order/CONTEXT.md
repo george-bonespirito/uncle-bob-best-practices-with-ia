@@ -33,12 +33,24 @@ Uma linha de produto dentro de um Order — SKU, quantidade, preço unitário, d
 _Avoid_: line item (isolado, sem o resto do vocabulário em inglês do contexto), produto do pedido
 
 **Snapshot**:
-Cópia denormalizada de dado de outro bounded context (Customer, Product), gravada no Order/Order Item no momento da Data Enrichment. Não é fonte de verdade — Customers/Products continuam donos do dado real; o snapshot só existe pra o Order não precisar consultar outro MS depois de enriquecido.
-_Avoid_: cache (implica invalidação/expiração, que não existe aqui — snapshot é permanente, tirado uma vez)
+Cópia denormalizada de dado de outro bounded context (Customer, Product), gravada no Order/Order Item no momento da Data Enrichment. Não é fonte de verdade — [Customers](../customers/CONTEXT.md)/Products continuam donos do dado real; o snapshot só existe pra o Order não precisar consultar outro MS depois de enriquecido. Carrega dado de negócio do pedido (nome, documento, endereço de entrega, descrição de produto) — nunca dado de contato, que precisa estar atualizado no momento de uso e por isso é consultado direto no dono.
+_Avoid_: cache — um Snapshot é permanente e nunca invalida, ao contrário do Customer Registry Cache, que é a única coisa neste contexto que merece esse nome
 
 **Import Batch**:
-Um upload de planilha de import em massa — existe como entidade própria (`PENDING`/`PROCESSING`/`COMPLETED`/`COMPLETED_WITH_ERRORS`) antes de qualquer Order ser criado a partir dele. Planilha é denormalizada: cabeçalho do pedido (`source_system_code`, `source_order_number`, `customer_code`, `order_created_at`) repetido em toda linha de item. Ver [[0004-async-bulk-import-with-batch-status]].
+Um upload de planilha de import em massa — existe como entidade própria (`PENDING`/`PROCESSING`/`COMPLETED`/`COMPLETED_WITH_ERRORS`) antes de qualquer Order ser criado a partir dele. Planilha é denormalizada: cabeçalho do pedido (`source_system_code`, `source_order_number`, `customer_id`, `order_created_at`) repetido em toda linha de item. Ver [[0004-async-bulk-import-with-batch-status]].
 _Avoid_: import job (genérico, "batch" já é o termo canônico aqui), upload (é só o gatilho, não a entidade)
+
+**Import Fingerprint**:
+Hash do conteúdo do arquivo de import, calculado no upload. Arquivo já importado é recusado na hora, sem criar Import Batch. Camada distinta do Source Order Number: o fingerprint pega o reenvio do mesmo arquivo, o Source Order Number pega o pedido repetido entre arquivos diferentes.
+_Avoid_: checksum, hash do arquivo (sem qualificar o papel), deduplicação de upload
+
+**Customer Registry Cache**:
+Cache em memória do MS Order que guarda quais `customer_id` existem no [Customers](../customers/CONTEXT.md), pra o import não consultar o mesmo cliente a cada linha. Guarda existência e nada mais — nunca dado de cliente, nunca status (que não existe do lado de lá). Só resultado positivo entra; miss e negativo sempre vão ao dono. Não confundir com Snapshot: este é volátil e é detalhe de eficiência, o Snapshot é permanente e é dado de negócio.
+_Avoid_: cache de cliente (ambíguo com Snapshot), customer store, réplica local
+
+**Rejected Order Row**:
+Linha da planilha recusada na validação do import, registrada como erro do Import Batch enquanto as demais linhas seguem — `customer_id` inexistente é a causa nova. O Import Batch fecha em `COMPLETED_WITH_ERRORS`. Indisponibilidade do Customers nunca produz Rejected Order Row: nesse caso o Order é criado e a validação real acontece na Data Enrichment, pra que um MS fora do ar não vire perda de venda.
+_Avoid_: linha inválida (genérico), erro de import, pedido rejeitado (ambíguo com falha de Processing Step)
 
 **Source Order Number**:
 Chave natural do Order no sistema de origem (`source_system_code` + `source_order_number`) — não é o `id` interno do Order, é o identificador que o sistema que gerou o pedido usa. Par único, usado pra detectar duplicata entre lotes de import.
