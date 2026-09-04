@@ -28,7 +28,7 @@
 | ID | Requirement | Priority | Acceptance Criteria |
 |---|---|---|---|
 | FR-01 | Usuário importa pedidos em massa via planilha (.xlsx/.csv) | P0 | Upload cria 1 Order por linha válida, status `PENDING`; linhas inválidas são reportadas sem bloquear as válidas — ver `bulk_import.feature` |
-| FR-02 | Order passa por Processing Steps concorrentes (Enrichment, Credit Validation, Stock Validation, Route Calculation, Invoice Generation) sem lost update | P0 | Duas etapas concorrentes no mesmo Order preservam as duas escritas — ver `concurrent_processing_steps.feature`, ADR 0001 |
+| FR-02 | Order passa pelas 5 Processing Steps em sequência (Enrichment, Credit Validation, Stock Validation, Route Calculation, Invoice Generation), com as 3 tasks de enriquecimento concorrentes entre si e sem lost update | P0 | Duas tasks de enriquecimento concorrentes no mesmo Order preservam as duas escritas — ver `concurrent_processing_steps.feature`, ADR raiz 0008, ADR order/0001 |
 | FR-03 | Mudanças no Order são publicadas via CDC no Kafka | P0 | Debezium captura toda mudança em `orders` via WAL, publica no tópico Kafka — ADR 0002 |
 | FR-04 | Cliente recebe WhatsApp a cada mudança de status do Order | P1 | Mudança de `status` dispara mensagem; mudança em outro campo não dispara — ver `status_change_notification.feature`, ADR notifications/0001 |
 | FR-05 | Workflow de processamento é orquestrado pelo Orkes, self-hosted | P0 | Conductor OSS roda via `docker compose`, sem dependência de conta externa (Orkes Cloud) |
@@ -43,7 +43,7 @@ Quero importar vários pedidos de uma vez via planilha,
 Para não cadastrar cada um manualmente.
 
 Como sistema,
-Quero aplicar o resultado de Processing Steps concorrentes sem perder escrita,
+Quero aplicar o resultado das tasks concorrentes de enriquecimento sem perder escrita,
 Para que o Order reflita corretamente o trabalho de todas as etapas.
 
 Como cliente que fez um pedido,
@@ -66,9 +66,9 @@ Para não deixar estoque ou crédito reservados num pedido cancelado.
 
 | # | Criterion | Status |
 |---|---|---|
-| 1 | Acceptance criteria definidos (Gherkin) | ✅ `bulk_import.feature`, `concurrent_processing_steps.feature`, `status_change_notification.feature`, `compensating_flow.feature` |
+| 1 | Acceptance criteria definidos (Gherkin) | ✅ `bulk_import.feature`, `concurrent_processing_steps.feature`, `status_change_notification.feature`, `compensating_flow.feature`, `awaiting_master_data.feature` |
 | 2 | Dependências identificadas | ✅ Postgres, Kafka, Debezium, Orkes/Conductor OSS, provedor WhatsApp (não escolhido) |
-| 3 | Abordagem técnica validada | ✅ via sessão de grilling — ADRs raiz 0001/0002, order 0001/0002/0003, notifications 0001 |
+| 3 | Abordagem técnica validada | ✅ via sessão de grilling — ADRs raiz 0001/0002/0008, order 0001/0002/0003/0011, notifications 0001/0003 |
 | 4 | Cabe na arquitetura atual | N/A — é greenfield, arquitetura sendo definida por este PRD |
 | 5 | Expectativas de performance/segurança documentadas | ⚠️ Não aprofundado — projeto de aprendizado, não produção |
 
@@ -117,7 +117,7 @@ flowchart LR
 
     Orkes["Orkes (Conductor OSS, self-hosted)"]
 
-    subgraph DataMS["Microsserviços de dado — Processing Steps (worker-polling)"]
+    subgraph DataMS["Microsserviços de dado — Processing Steps sequenciais por pedido (worker-polling); Customers/Products/Pricing em fork-join dentro da Data Enrichment"]
         Customers["MS Customers"]
         Products["MS Products"]
         Pricing["MS Pricing"]
@@ -133,7 +133,6 @@ flowchart LR
     WhatsApp[["WhatsApp (provedor externo)"]]
 
     User -->|"upload planilha"| Order
-    Order -->|"valida customer_id em lote (REST, cache em memória)"| Customers
     Notifications -->|"busca WhatsApp Phone (REST)"| Customers
     Order -->|"dispara workflow"| Orkes
     Orkes <-.->|"worker-polling"| Customers
@@ -175,7 +174,7 @@ Order é aggregate root; `order_items` é tabela filha (N produtos por pedido �
 | Coluna | Origem | Nullable até a etapa rodar |
 |---|---|---|
 | `id` | import | — (PK, é o `orderId` do Kafka) |
-| `status`, `version` | sistema | — |
+| `status`, `version` | sistema | — (`status`: `PENDING` \| `PROCESSING` \| `AWAITING_MASTER_DATA` \| `INVOICING` \| `COMPLETED` \| `COMPENSATING` \| `CANCELLED` \| `COMPENSATION_FAILED` — glossário em `app/order/CONTEXT.md`) |
 | `customer_id` | import | — (identidade do Customer emitida pelo MS Customers, trazida pela planilha; referência sem FK real — database-per-service) |
 | `source_system_code` | import | — (qual sistema de origem mandou o pedido, ex: "SAP") |
 | `source_order_number` | import | — (chave natural do pedido no sistema de origem; par com `source_system_code` deve ser `UNIQUE` — usado pra idempotência do import, ver Contrato REST) |
@@ -245,7 +244,7 @@ Erros de linha não vêm inline (lote ruim pode ter milhares) — ficam em `impo
 
 Duplicata de `(source_system_code, source_order_number)` — dentro do mesmo lote ou contra lote anterior — vira `import_batch_row_errors`, não bloqueia o resto. São duas camadas distintas de idempotência: o Import Fingerprint pega o reenvio do arquivo inteiro, o par acima pega o pedido repetido entre arquivos diferentes.
 
-**Validação de `customer_id` antes do workflow:** o import consulta o MS Customers em lote, com os IDs distintos do arquivo, antes de criar Order — Customer Registry Cache em memória no MS Order absorve a repetição entre imports (só existência, só resultado positivo, sem infra externa). `customer_id` inexistente vira `import_batch_row_errors` e recusa **a linha**, nunca o lote. Customers indisponível **não** recusa nada: os Orders são criados e a validação real cai pra Customer Enrichment, pra que um MS fora do ar não vire perda de venda. Contrato e semântica de falha: [`customers-api-contract.md`](./customers-api-contract.md).
+**O import não valida cliente nem produto contra outro microsserviço.** Só o que dá pra verificar dentro do próprio arquivo produz erro de linha. Existência de `customer_id` e de `sku` é verificada de forma assíncrona, pelas Processing Steps de Data Enrichment; cadastro faltando trava a task no Orkes até o dado existir, em vez de recusar a linha — ver [ADR order/0011](../../order/docs/adr/0011-async-only-enrichment-await-master-data.md).
 
 ### Diagrama de sequência: fluxo compensatório
 
@@ -259,11 +258,12 @@ sequenceDiagram
     participant OrderKafka as Kafka (resultado)
     participant Order as MS Order
 
+    Note over Orkes: Data Enrichment já concluída (etapas são sequenciais — ADR raiz 0008)
     Orkes->>Credit: poll — executa Credit Validation
-    Orkes->>Stock: poll — executa Stock Validation
     Credit-->>Orkes: sucesso, crédito reservado
     Credit->>OrderKafka: publica resultado (sucesso)
     OrderKafka-->>Order: consome, aplica (SKIP LOCKED + version)
+    Orkes->>Stock: poll — executa Stock Validation (só após Credit concluir)
     Stock-->>Orkes: falha permanente (sem estoque)
     Stock->>OrderKafka: publica resultado (falha)
     OrderKafka-->>Order: consome, aplica (SKIP LOCKED + version)
@@ -287,6 +287,7 @@ sequenceDiagram
 - **ADR raiz 0004** — um tópico Kafka por task do Conductor (7, não 1), Data Enrichment é sub-workflow de 3 tasks: [`app/docs/adr/0004-one-kafka-topic-per-processing-step.md`](../adr/0004-one-kafka-topic-per-processing-step.md)
 - **ADR raiz 0005** — dead letter topic por tópico de resultado, pra falha de consumo em MS Order (distinto do retry de task do Conductor): [`app/docs/adr/0005-dead-letter-topics-for-order-consumer-failures.md`](../adr/0005-dead-letter-topics-for-order-consumer-failures.md)
 - **ADR raiz 0006** — dev/test loop mira o cluster real, deploy de produção via ArgoCD, WhatsApp sem exposição pública: [`app/docs/adr/0006-dev-loop-and-deployment-topology.md`](../adr/0006-dev-loop-and-deployment-topology.md)
+- **ADR raiz 0008** — Processing Steps sequenciais por pedido; fork-join preservado dentro da Data Enrichment (Customers/Products/Pricing), que é onde o Lost Update passa a acontecer: [`app/docs/adr/0008-sequential-processing-steps-per-order.md`](../adr/0008-sequential-processing-steps-per-order.md)
 - **ADR raiz 0007** — Codeberg Container Registry (verificado, real) + Woodpecker CI com runner compartilhado, revisada em 2026-08-30 (registry self-hosted + agente self-hosted revertidos): [`app/docs/adr/0007-image-registry-and-ci-topology.md`](../adr/0007-image-registry-and-ci-topology.md)
 - **ADR 0008 (Order)** — pipeline completo commit→deploy: Woodpecker builda, publica (tag=SHA); `imagePullSecret` via ESO+Vault pro pull (registry exige auth mesmo em repo público, verificado). **Quem faz o bump do manifesto no repo de infra é pendente** — decisão do `claude-infra`, não fechada (gray area #19): [`app/order/docs/adr/0008-full-cicd-pipeline-commit-to-deploy.md`](../../order/docs/adr/0008-full-cicd-pipeline-commit-to-deploy.md). Diagrama de sequência (quem fala com quem): [`app/docs/diagrams/cicd-pipeline-sequence.drawio.svg`](../diagrams/cicd-pipeline-sequence.drawio.svg). Flowchart do processo, com pontos de falha (gate reprovado, pull falho): [`app/docs/diagrams/cicd-pipeline-flow.drawio.svg`](../diagrams/cicd-pipeline-flow.drawio.svg)
 - **Integration Spec** — schema completo dos 7 tópicos de resultado, envelope, retry/idempotência: [`app/docs/specs/processing-steps-kafka-integration.md`](processing-steps-kafka-integration.md)
@@ -297,9 +298,10 @@ sequenceDiagram
 - **ADR 0005 (Order)** — mutation testing focado em 5 áreas de decisão real, threshold 80% único: [`app/order/docs/adr/0005-mutation-testing-scope-and-threshold.md`](../../order/docs/adr/0005-mutation-testing-scope-and-threshold.md)
 - **ADR 0006 (Order)** — JPA direto em Order/OrderItem; decisões de domínio isoladas em `domain.policy` sem JPA/Spring: [`app/order/docs/adr/0006-jpa-on-aggregate-root-pure-policy-classes.md`](../../order/docs/adr/0006-jpa-on-aggregate-root-pure-policy-classes.md)
 - **ADR 0007 (Order)** — classificador de exceção pro DLT, default para permanente: [`app/order/docs/adr/0007-dlt-exception-classifier.md`](../../order/docs/adr/0007-dlt-exception-classifier.md)
-- **ADR 0009 (Order)** — validação de `customer_id` no import, recusa por linha e não por lote; indisponibilidade do Customers não recusa nada; `Import Fingerprint` recusa reenvio do mesmo arquivo: [`app/order/docs/adr/0009-validate-customer-at-import-degrade-on-outage.md`](../../order/docs/adr/0009-validate-customer-at-import-degrade-on-outage.md)
-- **ADR 0010 (Order)** — `Customer Registry Cache` em memória (Valkey rejeitado), só existência, só entrada positiva: [`app/order/docs/adr/0010-in-memory-customer-existence-cache.md`](../../order/docs/adr/0010-in-memory-customer-existence-cache.md)
-- **Integration Spec** — contrato síncrono do MS Customers (existência em lote pro import, contato pro envio) e semântica de falha: [`app/docs/specs/customers-api-contract.md`](customers-api-contract.md)
+- **ADR 0009 (Order)** — *superseded pela 0011.* Validação síncrona de `customer_id` no import; mantida no histórico porque o motivo da reversão é a informação útil: [`app/order/docs/adr/0009-validate-customer-at-import-degrade-on-outage.md`](../../order/docs/adr/0009-validate-customer-at-import-degrade-on-outage.md)
+- **ADR 0010 (Order)** — *superseded pela 0011.* `Customer Registry Cache` em memória (Valkey rejeitado); sem validação síncrona, o cache deixou de ter propósito: [`app/order/docs/adr/0010-in-memory-customer-existence-cache.md`](../../order/docs/adr/0010-in-memory-customer-existence-cache.md)
+- **ADR 0011 (Order)** — enriquecimento exclusivamente assíncrono: o import não consulta MS nenhum, cadastro faltando trava a task e o Order espera em `AWAITING_MASTER_DATA` até ser cadastrado e a task reexecutada: [`app/order/docs/adr/0011-async-only-enrichment-await-master-data.md`](../../order/docs/adr/0011-async-only-enrichment-await-master-data.md)
+- **Integration Spec** — contrato síncrono do MS Customers (só busca de contato, consumidor único: Notifications): [`app/docs/specs/customers-api-contract.md`](customers-api-contract.md)
 - **ADR notifications/0001** — MS Notifications consome o tópico CDC existente em vez de evento de domínio próprio: [`app/notifications/docs/adr/0001-consume-order-cdc-topic.md`](../../notifications/docs/adr/0001-consume-order-cdc-topic.md)
 - **ADR notifications/0002** — Meta Cloud API direto (não Twilio), envio via template pré-aprovado: [`app/notifications/docs/adr/0002-meta-cloud-api-for-whatsapp.md`](../../notifications/docs/adr/0002-meta-cloud-api-for-whatsapp.md)
 - **ADR notifications/0003** — WhatsApp Phone buscado no Customers na hora do envio, nunca copiado pro `Snapshot` (fecha o gap do número que não existia em lugar nenhum): [`app/notifications/docs/adr/0003-lookup-contact-at-send-time.md`](../../notifications/docs/adr/0003-lookup-contact-at-send-time.md)
@@ -310,8 +312,8 @@ sequenceDiagram
 |---|---|
 | Virtual threads | Ingestão em massa da planilha (MS Order); pool de workers que reivindicam `order_update_event` |
 | `SKIP LOCKED` | Fila interna `order_update_event` em MS Order — workers reivindicam evento pendente, não o Order em si (ADR 0001 explica por que `SKIP LOCKED` não serve pra proteger a linha do Order diretamente; ADR 0003 explica onde ele reaparece) |
-| Concorrência entre instâncias | Tópico Kafka de resultado, deliberadamente não particionado por `order_id` — sem isso, o Kafka serializaria por Order e a race que o optimistic locking precisa resolver nunca aconteceria (ADR 0003) |
-| Optimistic locking | Coluna `version` no Order — mecanismo real que evita lost update entre Processing Steps concorrentes |
+| Concorrência entre instâncias | N Orders em voo simultâneo, processados por múltiplas instâncias de MS Order; tópico Kafka de resultado deliberadamente não particionado por `order_id`, para que as mensagens das 3 tasks concorrentes de Data Enrichment do mesmo Order caiam em partitions diferentes (ADR 0003) |
+| Optimistic locking | Coluna `version` no Order — evita lost update entre as 3 tasks concorrentes da Data Enrichment (Customers escreve `customer_snapshot`; Products e Pricing escrevem nos `order_items`), todas incrementando o mesmo `version` do agregado. As Processing Steps entre si são sequenciais (ADR raiz 0008) |
 | CDC / Debezium | MS Order publica toda mudança da tabela `orders` via WAL (ADR 0002) |
 | Kafka | Dois tópicos distintos: resultado das Processing Steps (MS→Order, ADR 0003) e CDC do Order (Order→Notifications/externos, ADR 0002) |
 
@@ -343,7 +345,8 @@ Aplicados a cada MS conforme for implementado, começando por MS Order — mapea
 | 9 MS é escopo grande pra uma pessoa manter | Risco de abandono/inconsistência entre serviços | Implementação incremental por fatia vertical (MS Order primeiro), não big-bang — decisão já tomada nesta sessão |
 | Database-per-service + Debezium por serviço = 9x a infra de CDC se todos publicarem CDC | Complexidade operacional alta | Só MS Order tem CDC/Debezium confirmado neste PRD; os demais MS decidem sob demanda quando forem implementados |
 | `COMPENSATION_FAILED` não tem caminho de resolução automatizado | Order fica travado exigindo intervenção manual, sem ferramenta de ops desenhada para isso | Fora de escopo deste projeto de aprendizado; se algum dia for produção real, desenhar um painel/processo de retomada manual antes |
-| MS Customers vira ponto único de falha síncrono: import do Order e envio de Notifications dependem dele em runtime | Customers fora do ar degrada import (validação adiada pra Enrichment) e para notificação (DLT) | Degradação deliberada em vez de bloqueio no import; `Customer Registry Cache` reduz chamadas; semântica de falha fixada em `customers-api-contract.md` |
+| Planilha com muitas linhas de `customer_id`/`sku` inexistentes gera muitos Orders em `AWAITING_MASTER_DATA`, cada um exigindo cadastro e reexecução manual | Fila de trabalho manual de ops pode crescer sem controle; nenhum pedido é perdido, mas nenhum anda | `AWAITING_MASTER_DATA` é status próprio na tabela `orders`, então a fila é consultável. Retomada automática (evento de cadastro destravando workflows) foi rejeitada e continua em aberto — ver [ADR order/0011](../../order/docs/adr/0011-async-only-enrichment-await-master-data.md) |
+| MS Notifications depende do MS Customers em runtime para obter o WhatsApp Phone | Customers fora do ar impede envio de notificação | Retry curto e DLT; é o único acoplamento síncrono do sistema, e não envolve o MS Order |
 | Compensação assume que a ação compensatória é idempotente e nunca falha parcialmente | Se MS Stock/Contabil aplicar a compensação de forma não-idempotente, retry pode duplicar o efeito (ex: devolver estoque duas vezes) | Cada MS compensatório precisa desenhar sua ação de compensação como idempotente — checar antes de implementar Stock/Contabil |
 
 ---
@@ -356,16 +359,23 @@ Cenários Gherkin já escritos como `.feature` executável (não só tabela ilus
 |---|---|---|---|---|---|---|
 | TC-01 | Upload aceito, processa em background | Planilha .csv válida, 3 pedidos | `POST /imports/orders` | `202 Accepted` com `importBatchId`, status `PENDING` | FR-01 | `app/order/.../bulk_import.feature` |
 | TC-01b | Status reflete resultado | `importBatchId` já processado | `GET /imports/orders/{id}` | status `COMPLETED`, `ordersCreated=3`, workflow disparado por Order | FR-01 | `app/order/.../bulk_import.feature` |
-| TC-02 | Import com linha inválida | Planilha com 1 linha sem cliente | Upload + aguarda processar | status final `COMPLETED_WITH_ERRORS`, `ordersCreated=2`, erro em `import_batch_row_errors` | FR-01 | `app/order/.../bulk_import.feature` |
+| TC-02 | Import com linha inválida | Planilha com 1 linha sem dado obrigatório | Upload + aguarda processar | status final `COMPLETED_WITH_ERRORS`, `ordersCreated=2`, erro em `import_batch_row_errors` | FR-01 | `app/order/.../bulk_import.feature` |
+| TC-02c | Reenvio do mesmo arquivo | Planilha já importada com sucesso | Upload do mesmo arquivo | `409 Conflict` com o `importBatchId` original; nenhum Import Batch novo | FR-01 | `app/order/.../bulk_import.feature` |
+| TC-02d | Import não consulta outro MS | Planilha com `customer_id` inexistente | Upload + aguarda processar | `ordersCreated=3`; existência verificada depois, na Data Enrichment | FR-01 | `app/order/.../bulk_import.feature` |
 | TC-02b | Pedido duplicado | Order já importado com mesmo `source_system_code`+`source_order_number` | Nova planilha repete essa chave | Linha vira erro de duplicata; nenhum Order novo criado | FR-01 | `app/order/.../bulk_import.feature` |
-| TC-03 | Concorrência sem lost update | Order v1, 2 etapas concorrentes | Enrichment + Credit Validation reportam ao mesmo tempo | Ambas as escritas preservadas, versão avança em 2 | FR-02 | `app/order/.../concurrent_processing_steps.feature` |
+| TC-03 | Concorrência sem lost update | Order v1, 2 tasks de enriquecimento concorrentes | Customer Enrichment + Product Enrichment reportam ao mesmo tempo | Ambas as escritas preservadas, versão avança em 2 | FR-02 | `app/order/.../concurrent_processing_steps.feature` |
 | TC-04 | Conflito de versão | Order v3, 2 escritas concorrentes na mesma versão | Escritas simultâneas | Uma aplica e avança pra v4; outra recarrega v4 e reaplica | FR-02 | `app/order/.../concurrent_processing_steps.feature` |
 | TC-05 | Notificação em mudança de status | Order `PENDING`, cliente com WhatsApp | Status muda pra `PROCESSING` | Evento CDC publicado; WhatsApp enviado | FR-03, FR-04 | `app/notifications/.../status_change_notification.feature` |
 | TC-06 | Sem notificação fora de status | Order `PROCESSING` | Campo não-status muda | Nenhuma mensagem enviada | FR-04 | `app/notifications/.../status_change_notification.feature` |
 | TC-07 | Compensação após falha posterior | Credit Validation já sucedida (crédito reservado); Stock Validation falha permanentemente | Falha detectada pelo Orkes | Order vai a `COMPENSATING`; MS Contabil recebe ação de liberar crédito; Order vai a `CANCELLED` | FR-06 | `app/order/.../compensating_flow.feature` |
-| TC-08 | Falha sem efeito colateral pendente | Nenhuma etapa compensatória com sucesso ainda | Data Enrichment falha permanentemente | Order vai direto a `CANCELLED`, sem `COMPENSATING`, sem ação compensatória | FR-06 | `app/order/.../compensating_flow.feature` |
+| TC-08 | Falha sem efeito colateral pendente | Data Enrichment é a primeira da sequência, nenhuma etapa compensatória rodou | Data Enrichment falha permanentemente por motivo que não seja cadastro ausente | Order vai direto a `CANCELLED`, sem `COMPENSATING`, sem ação compensatória | FR-06 | `app/order/.../compensating_flow.feature` |
 | TC-09 | Compensação que falha | Order `COMPENSATING`, Stock Validation pendente de compensação | Ação compensatória de estoque falha após esgotar tentativas | Order vai a `COMPENSATION_FAILED`, sem retry automático adicional | FR-06 | `app/order/.../compensating_flow.feature` |
 | TC-10 | Invoice só após as 4 hard-blocking | Enrichment, Credit Validation, Stock Validation e Route Calculation concluídas com sucesso | Orkes avalia o workflow | Invoice Generation é disparada; Order vai a `INVOICING` | FR-02, FR-06 | `app/order/.../compensating_flow.feature` |
+
+| TC-11 | Cadastro ausente trava sem cancelar | Order com `customer_id` inexistente | Customer Enrichment reporta Customer Not Found | Order vai a `AWAITING_MASTER_DATA`; não é cancelado; nenhuma compensação | FR-02, FR-06 | `app/order/.../awaiting_master_data.feature` |
+| TC-12 | Nada fica reservado durante a espera | Order em `AWAITING_MASTER_DATA` | — | Nenhum crédito nem estoque reservado, porque essas etapas vêm depois na sequência | FR-06 | `app/order/.../awaiting_master_data.feature` |
+| TC-13 | Cadastro + reexecução destrava | Order em `AWAITING_MASTER_DATA` | Cliente é cadastrado e a task reexecutada | Snapshot gravado; Order volta a `PROCESSING`; Credit Validation dispara em seguida | FR-02 | `app/order/.../awaiting_master_data.feature` |
+| TC-14 | Só a task que falhou reexecuta | Order travado por produto; Customer Enrichment e Pricing já sucedidas | Product Enrichment reexecutada | As outras 2 tasks não reexecutam; resultado já aplicado permanece | FR-02 | `app/order/.../awaiting_master_data.feature` |
 
 **Gap identificado nesta sessão:** `~/.claude/templates/FEATURE_SPEC.md` não tem elo pra traduzir a tabela Given/When/Then do PRD em `.feature` executável — esses arquivos foram criados diretamente para este projeto, fora do fluxo padrão de templates.
 
@@ -416,7 +426,7 @@ Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 pa
 4. ✅ Idempotência da ação compensatória — `resultId` (aplicação ao Order) + `creditHoldId`/`stockReservationId` (compensação em si) — mesma seção.
 
 **Bloqueantes pros outros 8 MS:**
-5. 🟡 `CONTEXT.md` por MS de dado — [Customers resolvido](../../customers/CONTEXT.md): identidade `customer_id` sem conversão, `Document` como VO com `Customer Type` derivado, `Delivery Address` com default obrigatório, cadastro sem status, `Customer Not Found` como única falha de negócio. Trouxe junto o Customers Lookup síncrono ([`customers-api-contract.md`](./customers-api-contract.md)) e 3 termos novos no contexto Order (`Import Fingerprint`, `Customer Registry Cache`, `Rejected Order Row`). Faltam Products, Pricing, Stock, Contabil, Invoice, Route, Notifications.
+5. 🟡 `CONTEXT.md` por MS de dado — [Customers resolvido](../../customers/CONTEXT.md): identidade `customer_id` sem conversão, `Document` como VO com `Customer Type` derivado, `Delivery Address` com default obrigatório, cadastro sem status, `Customer Not Found` como única falha de negócio. Trouxe junto o Customers Lookup síncrono, hoje com consumidor único ([`customers-api-contract.md`](./customers-api-contract.md)), e termos novos no contexto Order (`Import Fingerprint`, `Rejected Order Row`, `Data Enrichment`). Faltam Products, Pricing, Stock, Contabil, Invoice, Route, Notifications — **Products é o próximo**, com 4 perguntas já levantadas (granularidade do SKU, atributos físicos para Route, divergência `nome` vs `descrição` entre PRD e spec Kafka, existência de `Product Status`).
 
 **Em aberto, não bloqueante agora:**
 6. ✅ Provedor WhatsApp — Meta Cloud API direto, envio via template pré-aprovado (exigência da Meta, não específica de provedor) — ADR notifications/0002.
@@ -433,6 +443,7 @@ Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 pa
 17. ✅ Domain/JPA — `Order`/`OrderItem` levam JPA direto (sem mapper); decisões de negócio isoladas em `domain.policy.*`, sem JPA/Spring; regra ArchUnit revisada, escopada a `domain.policy` — ADR order/0006.
 18. ✅ Codeberg Container Registry (verificado real) + Woodpecker CI com runner compartilhado — ADR raiz 0007, revisada 2026-08-30 (self-hosted revertido).
 19. ✅ Quem faz o bump da tag no manifesto do repo de infra — commit direto do CI, decidido pelo `claude-infra` — ADR-004 do repo de infra (commit `ad8d16d`), ADR order/0008 atualizada em espelho. `imagePullSecret` corrigido: não é mais requisito fechado (teste real: `404` vs `401` no registry).
+20. ⬜ Retomada automática de Order em `AWAITING_MASTER_DATA` — hoje ops cadastra o dado faltante e reexecuta a task manualmente no Conductor; automatizar exigiria eventos de ciclo de vida nos MS de cadastro, rejeitados por não terem consumidor (ADR order/0011).
 
 ---
 
@@ -444,4 +455,5 @@ Evolução da série de sessões de grilling, fase a fase, com o que já foi dec
 
 - Repositório inicializado em Codeberg (`torgge/uncle-bob-best-practices-with-ia`) via `tea` CLI, commit inicial com o conteúdo de `doc/transcripts/`.
 - Domínio evoluiu de um "Task Manager" genérico (descartado) para este sistema de Order Processing, através de uma sessão de grilling completa (`/mattpocock-skills:grill-with-docs`) que corrigiu, entre outras coisas, o mal-entendido inicial sobre `SKIP LOCKED` vs. optimistic locking.
+- Rodada de 2026-09-01/03: linguagem do Customers resolvida (primeiro dos 8 MS de dado). Duas decisões dessa rodada foram revertidas no mesmo ciclo — a validação síncrona de `customer_id` no import (ADR order/0009) e o cache de existência em memória (ADR order/0010) — por decisão de manter o enriquecimento exclusivamente assíncrono; as ADRs foram mantidas como `superseded` em vez de apagadas, porque o motivo da reversão é a informação útil. Na mesma rodada o workflow deixou de ser fork-join das 4 Processing Steps e passou a ser sequencial por pedido (ADR raiz 0008), com o fork-join preservado dentro da Data Enrichment — que é onde o Lost Update passa a viver. Gap real encontrado e fechado: o número de WhatsApp exigido pelo `status_change_notification.feature` não existia em lugar nenhum do sistema (ADR notifications/0003).
 - Escopo de implementação foi explicitamente limitado a design nesta rodada — nenhum código Kotlin/Gradle foi criado, só documentação/especificação (ADRs, CONTEXT.md, Gherkin, diagrama).

@@ -13,3 +13,5 @@ Decidimos:
 Alternativa rejeitada: permitir que Enrichment/Route Calculation sejam best-effort (não bloqueiam o Order mesmo falhando). Rejeitada porque geraria Orders com nota fiscal emitida sobre dado potencialmente incompleto — pior para o objetivo de aprendizado do que simplificar a modelagem de compensação.
 
 Status: accepted
+
+**Revisão (2026-09-03) — a ordem mudou, a decisão não.** As 5 Processing Steps passaram a executar em sequência por pedido ([ADR raiz 0008](./0008-sequential-processing-steps-per-order.md)): o fork-join das 4 descrito no item 1 não existe mais. O que muda é o item 2: o conjunto de etapas a compensar deixa de depender do timing ("o que já tinha terminado quando a falha foi detectada") e passa a ser determinístico — compensam-se as etapas anteriores à que falhou na fila. Tudo o mais desta ADR continua valendo: quais etapas têm efeito colateral, quem executa a compensação, o transporte por worker-polling e o tratamento de `COMPENSATION_FAILED`. O ciclo de status do item 4 ganha `AWAITING_MASTER_DATA` ([ADR order/0011](../../order/docs/adr/0011-async-only-enrichment-await-master-data.md)), possível só durante a Data Enrichment.

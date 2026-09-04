@@ -14,8 +14,8 @@ Feature: Fluxo compensatório quando uma Processing Step falha
 
   Scenario: Enrichment falha mesmo sem efeito colateral, e ainda assim cancela o pedido
     Given um Order "#123" em "PROCESSING"
-    And nenhuma etapa com efeito colateral reportou sucesso ainda
-    When a etapa "Data Enrichment" falha permanentemente
+    And a etapa "Data Enrichment" é a primeira da sequência, então nenhuma etapa com efeito colateral rodou ainda
+    When a etapa "Data Enrichment" falha permanentemente por um motivo que não seja cadastro ausente
     Then o Order muda direto para "CANCELLED", sem passar por "COMPENSATING"
     And nenhuma ação compensatória é disparada
 

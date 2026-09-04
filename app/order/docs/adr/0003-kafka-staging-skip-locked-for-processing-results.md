@@ -15,3 +15,5 @@ Alternativa rejeitada: consumer aplica o resultado direto no Order (só optimist
 Trade-off aceito: mais um componente (tabela de staging + pool de workers) do que uma aplicação direta teria. Aceitável porque testar `SKIP LOCKED` de verdade é um objetivo explícito deste projeto, não um acidente de implementação.
 
 Status: accepted
+
+**Revisão (2026-09-03) — precisão sobre a justificativa do particionamento.** Com as Processing Steps em sequência por pedido ([ADR raiz 0008](../../../docs/adr/0008-sequential-processing-steps-per-order.md)), "mensagens do mesmo Order processadas por instâncias diferentes ao mesmo tempo" continua acontecendo, mas só dentro da Data Enrichment, onde as 3 tasks permanecem em fork-join. As duas camadas de concorrência descritas acima seguem intactas: a camada 2 (`SKIP LOCKED` na fila de staging) nunca dependeu da concorrência entre Processing Steps — a fila acumula eventos de muitos Orders diferentes, e é essa disputa que os workers resolvem. Não particionar por `order_id` segue correto também por distribuição de carga entre instâncias.
