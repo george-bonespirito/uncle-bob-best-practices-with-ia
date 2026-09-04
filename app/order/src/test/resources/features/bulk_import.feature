@@ -30,20 +30,12 @@ Feature: Importação em massa de pedidos via planilha
     Then a API responde "409 Conflict" com o importBatchId do lote original
     And nenhum Import Batch novo é criado
 
-  Scenario: Linha com customer_id inexistente é recusada sem bloquear o lote
+  Scenario: Import não consulta outro microsserviço para validar cliente ou produto
     Given uma planilha .csv com linhas de 3 pedidos, sendo 1 com um customer_id que não existe no MS Customers
     When o usuário faz upload e aguarda o processamento terminar
-    Then o status final é "COMPLETED_WITH_ERRORS"
-    And "ordersCreated" é 2
-    And a linha do customer_id inexistente aparece em import_batch_row_errors
-
-  Scenario: MS Customers indisponível não recusa pedido nenhum
-    Given uma planilha .csv com linhas de 3 pedidos válidos
-    And o MS Customers está indisponível durante o import
-    When o usuário faz upload e aguarda o processamento terminar
     Then "ordersCreated" é 3
-    And nenhuma linha aparece em import_batch_row_errors por causa da indisponibilidade
-    And a validação do cliente acontece na Processing Step de Data Enrichment
+    And nenhuma linha aparece em import_batch_row_errors por causa do customer_id
+    And a existência do cliente é verificada de forma assíncrona, na Processing Step de Data Enrichment
 
   Scenario: Pedido duplicado (mesma origem + mesmo número) não gera Order duplicado
     Given um Order já importado com source_system_code "ERP-SAP" e source_order_number "PO-123"

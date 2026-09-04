@@ -41,11 +41,11 @@ A Processing Step do Order que este contexto executa: dado um `customer_id`, dev
 _Avoid_: Data Enrichment (é o sub-workflow inteiro, que inclui Products e Pricing — Customer Enrichment é só a parte deste contexto), lookup de cliente, consulta de cliente
 
 **Customers Lookup**:
-Consulta síncrona a este contexto, fora do fluxo de Processing Step. Tem dois consumidores: o import do Order verifica existência de `customer_id` em lote antes de criar Order, e MS Notifications busca o WhatsApp Phone no momento de enviar a mensagem. Contrato em [`customers-api-contract.md`](../docs/specs/customers-api-contract.md).
+Consulta síncrona a este contexto, fora do fluxo de Processing Step. Consumidor único: MS Notifications, buscando o WhatsApp Phone no momento de enviar a mensagem. O MS Order nunca consulta este contexto de forma síncrona — todo enriquecimento é assíncrono. Contrato em [`customers-api-contract.md`](../docs/specs/customers-api-contract.md).
 _Avoid_: API do Customers (genérico), consulta de cliente, customer service
 
 **Customer Not Found**:
-O `customer_id` não existe no cadastro. Recusa o pedido (não o Import Batch) quando detectado no import do Order, e é a única causa de falha de negócio da Customer Enrichment — onde restou como caso de corrida, para cliente removido entre o import e o enriquecimento. Indisponibilidade deste contexto nunca é Customer Not Found: são coisas distintas e o consumidor precisa distingui-las.
+O `customer_id` não existe no cadastro. É a única causa de falha de negócio da Customer Enrichment, e não recusa o pedido: a task fica travada até o cliente ser cadastrado e a task reexecutada — ver [ADR order/0011](../order/docs/adr/0011-async-only-enrichment-await-master-data.md). Indisponibilidade deste contexto nunca é Customer Not Found: são coisas distintas e o consumidor precisa distingui-las.
 _Avoid_: cliente inválido, customer rejected, erro de enriquecimento, cliente indisponível
 
 **Customer Status**:

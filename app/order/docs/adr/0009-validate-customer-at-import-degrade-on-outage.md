@@ -17,3 +17,5 @@ Este segundo ponto é o que mais parece bug pra quem chega depois: a validação
 **Também nesta decisão:** `Import Fingerprint` (hash do conteúdo do arquivo, `UNIQUE` em `import_batches`) recusa o reenvio do mesmo arquivo com `409` antes de criar Import Batch. É camada distinta da duplicata por `(source_system_code, source_order_number)`, que continua existindo e pega o pedido repetido entre arquivos diferentes.
 
 Status: accepted
+
+**Status: superseded by [ADR order/0011](./0011-async-only-enrichment-await-master-data.md)** — a validação síncrona no import foi revertida: todo enriquecimento passou a ser exclusivamente assíncrono, e cliente/produto inexistente é resolvido travando a task até o cadastro existir, não recusando a linha. O `Import Fingerprint` descrito no fim desta ADR **permanece válido** — não tem relação com acoplamento.

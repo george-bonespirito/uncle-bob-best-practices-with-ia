@@ -15,3 +15,5 @@ Decidimos um **`Customer Registry Cache` em memória, local a cada instância do
 **Reversibilidade:** trocar por Valkey depois é barato se a interface do cache for uma porta do domínio e não uma chamada direta a uma estrutura de dados. Se o volume mudar de ordem de grandeza, revisitar — a decisão aqui é sobre o volume de hoje, não sobre Valkey ser ruim.
 
 Status: accepted
+
+**Status: superseded by [ADR order/0011](./0011-async-only-enrichment-await-master-data.md)** — sem validação síncrona no import, o cache de existência deixou de ter propósito. A rejeição do Valkey continua registrada aqui como precedente: infra stateful nova precisa de ganho que a pague.
