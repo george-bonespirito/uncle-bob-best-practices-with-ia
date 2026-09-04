@@ -5,7 +5,7 @@ Sistema de referência de supply chain: um Order é criado via importação em m
 ## Contexts
 
 - [Order](./order/CONTEXT.md) — dono do Pedido de compra e seu status; único writer do agregado, recebe o resultado de todas as Processing Steps
-- Customers — cadastro de clientes _(ainda sem CONTEXT.md — linguagem não resolvida)_
+- [Customers](./customers/CONTEXT.md) — cadastro de clientes; fonte de verdade de nome, documento, endereços de entrega e WhatsApp do comprador
 - Products — cadastro de produtos _(ainda sem CONTEXT.md — linguagem não resolvida)_
 - Pricing — valor unitário por SKU _(ainda sem CONTEXT.md — linguagem não resolvida)_
 - Stock — estoque por produto/SKU _(ainda sem CONTEXT.md — linguagem não resolvida)_
@@ -19,4 +19,6 @@ Sistema de referência de supply chain: um Order é criado via importação em m
 - **Orkes ↔ Customers, Products, Pricing, Stock, Contabil, Invoice, Route**: worker-polling — cada MS roda um worker que faz polling na fila de tasks do Orkes, executa a Processing Step, reporta conclusão via API do Conductor. Nenhum MS expõe endpoint HTTP alcançável pelo Orkes — ver [ADR raiz 0001](./docs/adr/0001-worker-polling-for-processing-steps.md)
 - **Customers, Products, Pricing, Stock, Contabil, Invoice, Route → Order (via Kafka)**: cada MS publica o resultado da sua Processing Step num único tópico Kafka, não particionado por `order_id` (de propósito, pra preservar concorrência real entre instâncias de MS Order). MS Order grava em staging (`order_update_event`) e aplica via pool de workers com `SKIP LOCKED` + optimistic locking — ver [order ADR 0003](./order/docs/adr/0003-kafka-staging-skip-locked-for-processing-results.md)
 - **Notifications ← Order (via Kafka)**: consome o mesmo tópico CDC do Debezium (ADR 0002), filtrando eventos onde `before.status != after.status`; acoplado ao schema da tabela `orders` — ver [notifications ADR 0001](./notifications/docs/adr/0001-consume-order-cdc-topic.md)
+- **Order → nenhum MS de dado, de forma síncrona**: o import não consulta Customers nem Products pra validar `customer_id`/`sku`. Todo enriquecimento é assíncrono (worker-polling + Kafka); cadastro faltando trava a task no Orkes até o dado existir, em vez de recusar a linha — ver [order ADR 0011](./order/docs/adr/0011-async-only-enrichment-await-master-data.md)
+- **Notifications → Customers (REST síncrono, no envio)**: o WhatsApp Phone não viaja no CDC — Notifications busca o número no [Customers](./customers/CONTEXT.md) ao processar a mudança de status, pra que troca de número valha imediatamente. Customers indisponível: retry curto e DLT do Notifications. Mesmo contrato acima
 - **Orkes → Contabil, Stock (compensação)**: só essas duas têm ação compensatória (efeito colateral real); disparada via worker-polling quando uma Processing Step hard-blocking falha permanentemente — ver [ADR raiz 0002](./docs/adr/0002-compensating-flow-for-order-processing.md)

@@ -1,6 +1,6 @@
 # Import assíncrono (202 Accepted) com tabela própria de status do lote
 
-O endpoint de bulk import recebe planilhas de até ~50.000 linhas (denormalizadas: cabeçalho do pedido repetido em cada linha de item — `source_system_code`, `source_order_number`, `customer_code`, `order_created_at`, `sku`, `quantity`). Processar isso dentro da própria requisição HTTP arriscaria timeout de cliente/proxy em requests de minutos.
+O endpoint de bulk import recebe planilhas de até ~50.000 linhas (denormalizadas: cabeçalho do pedido repetido em cada linha de item — `source_system_code`, `source_order_number`, `customer_id`, `order_created_at`, `sku`, `quantity`). Processar isso dentro da própria requisição HTTP arriscaria timeout de cliente/proxy em requests de minutos.
 
 Decidimos: `POST /imports/orders` aceita o arquivo e devolve `202 Accepted` com um `importBatchId` imediatamente; o processamento roda em background usando virtual threads (uma por linha/lote); `GET /imports/orders/{importBatchId}` consulta status e resultado.
 
