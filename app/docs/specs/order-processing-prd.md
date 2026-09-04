@@ -83,6 +83,7 @@ Requisito NÃO atende DoR: **implementação em si** — decisão explícita da 
 - Database-per-service — nenhum MS compartilha tabela com outro (ver decisão na sessão de grilling).
 - Integração externa: provedor de WhatsApp Business API (não escolhido ainda — Twilio, Meta Cloud API, etc. são candidatos).
 - Fluxo de dado: entrada via planilha (MS Order) → saída via Kafka (CDC) → WhatsApp (MS Notifications).
+- Observabilidade: **OpenTelemetry** — o MS Order nasce instrumentado (confirmado 2026-09-03 com a sessão de infra). No cluster, OTel Collector como transporte e Grafana Tempo como backend, reusando o Grafana já existente; SigNoz e Jaeger descartados pelo lado da infra. Alertas genéricos (crash loop, Application degradada) são herdados automaticamente do Alertmanager do cluster; métricas de domínio dependem do que a aplicação expuser.
 
 ### C4 — Level 1: System Context
 
@@ -444,6 +445,8 @@ Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 pa
 18. ✅ Codeberg Container Registry (verificado real) + Woodpecker CI com runner compartilhado — ADR raiz 0007, revisada 2026-08-30 (self-hosted revertido).
 19. ✅ Quem faz o bump da tag no manifesto do repo de infra — commit direto do CI, decidido pelo `claude-infra` — ADR-004 do repo de infra (commit `ad8d16d`), ADR order/0008 atualizada em espelho. `imagePullSecret` corrigido: não é mais requisito fechado (teste real: `404` vs `401` no registry).
 20. ⬜ Retomada automática de Order em `AWAITING_MASTER_DATA` — hoje ops cadastra o dado faltante e reexecuta a task manualmente no Conductor; automatizar exigiria eventos de ciclo de vida nos MS de cadastro, rejeitados por não terem consumidor (ADR order/0011).
+21. ⬜ Ferramenta de migration do schema do MS Order (Flyway vs Liquibase) — nunca decidida. A fronteira já está clara (infra provisiona role/banco, schema é da aplicação — ADR-006 do repo de infra), falta escolher a ferramenta. Não bloqueia o provisionamento do banco.
+22. ⬜ Métricas de domínio que o MS Order expõe via OpenTelemetry — candidatos levantados, nenhum decidido: profundidade da fila `order_update_event`, taxa de conflito de `version`, contagem de Orders em `AWAITING_MASTER_DATA` (fila de trabalho manual, crescer sem parar é sinal de problema).
 
 ---
 
