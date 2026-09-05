@@ -72,7 +72,23 @@ Missing `CONTEXT.md` for a context is expected — don't flag it, don't create i
 
 `origin` is SSH (`git@codeberg.org:torgge/uncle-bob-best-practices-with-ia.git`); pushes work non-interactively via a dedicated key. **HTTPS does not work here** — there is no credential helper, so an HTTPS remote fails with `could not read Username`.
 
-**Opening a PR needs a token**, which this environment does not have. Without one, push the branch and hand the user the compare URL git prints — Forgejo accepts `?title=…&body=…` (URL-encoded) on that URL to prefill the form.
+**Opening a PR does not need a token** — Forgejo's AGit flow creates one over SSH:
+
+```bash
+git push origin HEAD:refs/for/main \
+  -o topic="<branch-ish-name>" \
+  -o title="..." \
+  -o description="..."
+```
+
+Two constraints, both learned the hard way:
+
+- **Push options must not contain newlines** (`fatal: push options must not have new line characters`) — the description has to be a single paragraph. For a body with real structure, prefer the branch + compare-URL route below.
+- An AGit PR's head is `refs/pull/<n>/head`, **not** the branch. Pushing the branch separately *and* running AGit creates two overlapping PRs — pick one route per change.
+
+The alternative, which supports a multi-line body: push the branch normally and open the compare URL git prints, with `?title=…&body=…` (URL-encoded) appended to prefill the form.
+
+**Reading or editing PR/issue metadata still needs a token** — that part has no tokenless path.
 
 ## Issue tracker: Codeberg Issues
 
