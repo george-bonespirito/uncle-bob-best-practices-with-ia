@@ -68,20 +68,28 @@ Missing `CONTEXT.md` for a context is expected — don't flag it, don't create i
 - Branch prefix by type (`docs/`, `feature/`, `fix/`), always from `main`, never commit directly to `main`
 - Squash-merge PRs, one subject per PR
 
-## Issue tracker: Codeberg via `tea`
+### Git access from the llm-server
 
-Login `torgge` pre-configured. Commands:
+`origin` is SSH (`git@codeberg.org:torgge/uncle-bob-best-practices-with-ia.git`); pushes work non-interactively via a dedicated key. **HTTPS does not work here** — there is no credential helper, so an HTTPS remote fails with `could not read Username`.
 
-```bash
-tea issues list --state open --labels "..." --keyword "..."
-tea issues create --title "..." --description "..."
-tea issues <n> --comments
-tea comment <n> "<single-line body>"  # multi-line HANGS — split into separate calls
-tea issues edit <n> --add-labels "..." --add-assignees "..."
-tea issues close <n>
-```
+**Opening a PR needs a token**, which this environment does not have. Without one, push the branch and hand the user the compare URL git prints — Forgejo accepts `?title=…&body=…` (URL-encoded) on that URL to prefill the form.
 
-**Before creating**: `tea issues list --keyword "<fragment>"` to avoid duplicates (maps and child tickets were duplicated before when compaction erased conversation memory — tracker state survives compaction).
+## Issue tracker: Codeberg Issues
+
+The repo is **private** — there is no anonymous read, and an unauthenticated API call returns `404` rather than an empty result. Every tracker operation needs a credential.
+
+Two transports carry the same operations; the workflow depends on neither:
+
+- **`tea` CLI** — George's workstation, login `torgge` preconfigured. **Not installed on the llm-server.**
+- **Forgejo REST API** — anywhere with a token (`Authorization: token <TOKEN>`, scope `write:repository`).
+
+Full operation mapping in `docs/agents/issue-tracker.md`.
+
+**Before creating anything**: search the tracker for an existing issue. Maps and child tickets were duplicated once when compaction erased conversation memory — **compaction erases conversation memory, not tracker state**, so "I don't remember this ticket" is evidence about the session, not the tracker.
+
+If a session has neither transport, ask the user to perform the write. An unreachable tracker is not licence to skip the duplicate check.
+
+**`tea` gotcha**: `tea comment` hangs forever on a body containing a newline (v0.14.1) — one call per paragraph. The API has no such limit.
 
 ## Cross-session infra relay
 
@@ -109,7 +117,7 @@ C4 diagrams are `.drawio.svg` — SVG with draw.io XML embedded. Open in browser
 ## Skills and agents in this repo
 
 - **`.claude/skills/infra-relay/`** — protocol for messaging the infra session. Load before `SendMessage`.
-- **`.claude/skills/tea-issue-ops/`** — tea CLI conventions + bug workarounds. Load before any `tea issues` create/comment/edit.
+- **`.claude/skills/issue-ops/`** — tracker habits (check-before-create, Wayfinder body conventions, transport choice). Load before creating, commenting on, or editing any issue.
 - **`.claude/agents/gherkin-consistency-reviewer.md`** — reviews `.feature` files against ADRs and CONTEXT.md for drift. No implementation exists, so this is the only consistency check.
 
 ## Infrastructure context (design, not deployed)
