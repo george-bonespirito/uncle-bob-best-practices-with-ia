@@ -40,7 +40,7 @@ Saída final: markdown com header + metadata da fonte, segmentado por seção te
 
 ### Issue tracker
 
-Codeberg Issues via `tea` CLI (login `torgge`). See `docs/agents/issue-tracker.md`.
+Codeberg Issues (Forgejo), repo privado — toda operação exige credencial. Dois transportes: `tea` CLI (workstation do George) ou API REST do Forgejo com token (demais ambientes). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
