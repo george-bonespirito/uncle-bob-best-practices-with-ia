@@ -74,7 +74,13 @@ Decisão que vale para o sistema todo vai em `app/docs/adr/`; decisão local a u
 
 ## Infraestrutura
 
-O sistema é desenhado para rodar num cluster k3s on-premises gerenciado por ArgoCD, num repositório separado (`bonespirito-cluster-k3s-infra`, privado). Postgres, Kafka e Apicurio Registry já rodam lá; o Conductor ainda não. As decisões de infra vivem naquele repositório, não neste.
+O sistema é desenhado para rodar num cluster k3s on-premises gerenciado por ArgoCD, num repositório separado ([`bonespirito-cluster-k3s-infra`](https://codeberg.org/torgge/bonespirito-cluster-k3s-infra)). Postgres, Kafka e Apicurio Registry já rodam lá; o Conductor ainda não. As decisões de infra vivem naquele repositório, não neste.
+
+## Licença
+
+[MIT](LICENSE).
+
+O conteúdo de `doc/transcripts/` é transcrição de uma entrevista pública de terceiros, incluída aqui como material de estudo; a licença MIT cobre o código e a documentação deste repositório, não a fala transcrita.
 
 ## Para agentes
 
