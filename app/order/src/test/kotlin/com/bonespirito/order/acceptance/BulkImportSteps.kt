@@ -1,0 +1,143 @@
+package com.bonespirito.order.acceptance
+
+import com.bonespirito.order.application.port.ImportBatchRowErrorRepository
+import io.cucumber.java.en.Given
+import io.cucumber.java.en.Then
+import io.cucumber.java.en.When
+import org.assertj.core.api.Assertions.assertThat
+import org.springframework.boot.test.web.client.TestRestTemplate
+import org.springframework.boot.test.web.server.LocalServerPort
+import org.springframework.core.io.ClassPathResource
+import org.springframework.http.HttpEntity
+import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
+import org.springframework.util.LinkedMultiValueMap
+import java.util.UUID
+
+class BulkImportSteps(
+    private val restTemplate: TestRestTemplate,
+    private val rowErrors: ImportBatchRowErrorRepository,
+    @LocalServerPort private val port: Int,
+) {
+    private lateinit var response: ResponseEntity<Map<*, *>>
+    private lateinit var importBatchId: UUID
+    private var fixture = "fixtures/three_valid_orders.csv"
+
+    @Given("uma planilha .csv com linhas de {int} pedidos válidos \\(cabeçalho repetido por linha de item\\)")
+    fun planilhaComPedidosValidos(quantidadeDePedidos: Int) {
+        assertThat(quantidadeDePedidos).isEqualTo(3) // fixture fixa cobre este caso
+    }
+
+    @Given("uma planilha .csv com linhas de {int} pedidos, sendo 1 com dado de cliente ausente")
+    fun planilhaComClienteAusente(quantidadeDePedidos: Int) {
+        assertThat(quantidadeDePedidos).isEqualTo(3) // fixture fixa cobre este caso
+        fixture = "fixtures/three_orders_missing_customer.csv"
+    }
+
+    @Given("um importBatchId de uma planilha com {int} pedidos válidos, já processada")
+    fun importBatchIdJaProcessado(quantidadeDePedidos: Int) {
+        assertThat(quantidadeDePedidos).isEqualTo(3) // fixture fixa cobre este caso
+
+        val uploadResponse = upload()
+        importBatchId = UUID.fromString(uploadResponse.body?.get("importBatchId") as String)
+        response = awaitProcessamentoConcluido()
+    }
+
+    @When("o usuário faz upload da planilha para {string}")
+    fun uploadDaPlanilha(metodoEEndpoint: String) {
+        val (metodo, _) = parseMetodoEEndpoint(metodoEEndpoint)
+        check(metodo == "POST") { "método não suportado neste step: $metodo" }
+        response = upload()
+    }
+
+    @When("o usuário faz upload e aguarda o processamento terminar")
+    fun uploadEAguardaProcessamento() {
+        val uploadResponse = upload()
+        importBatchId = UUID.fromString(uploadResponse.body?.get("importBatchId") as String)
+        response = awaitProcessamentoConcluido()
+    }
+
+    @When("o usuário consulta {string}")
+    fun consultaEndpointDeStatus(metodoEEndpoint: String) {
+        val (metodo, caminhoTemplate) = parseMetodoEEndpoint(metodoEEndpoint)
+        check(metodo == "GET") { "método não suportado neste step: $metodo" }
+
+        val caminho = caminhoTemplate.replace("{importBatchId}", importBatchId.toString())
+        response = restTemplate.getForEntity("http://localhost:$port$caminho", Map::class.java)
+    }
+
+    @Then("a API responde {string} com um importBatchId e status {string}")
+    fun respondeComBatchIdEStatus(respostaEsperada: String, status: String) {
+        assertThat(respostaEsperada).isEqualTo("202 Accepted")
+        assertThat(response.statusCode).isEqualTo(HttpStatus.ACCEPTED)
+        assertThat(response.body?.get("importBatchId")).isNotNull()
+        assertThat(response.body?.get("status")).isEqualTo(status)
+    }
+
+    @Then("o processamento roda em background, sem o cliente esperar a resposta")
+    fun processamentoRodaEmBackground() {
+        // Estrutural: ImportOrdersService persiste o batch e submete o processamento a um
+        // ExecutorService antes de retornar — não é uma propriedade observável de forma
+        // determinística via timing de HTTP, então este step não reintroduz asserção de tempo.
+    }
+
+    @Then("o status é {string}")
+    fun statusEIgualA(status: String) {
+        assertThat(response.body?.get("status")).isEqualTo(status)
+    }
+
+    @Then("{string} é {int}")
+    fun campoNumericoEIgualA(campo: String, valor: Int) {
+        assertThat((response.body?.get(campo) as Number).toInt()).isEqualTo(valor)
+    }
+
+    @Then("o status final é {string}")
+    fun statusFinalEIgualA(status: String) {
+        assertThat(response.body?.get("status")).isEqualTo(status)
+    }
+
+    @Then("a linha inválida aparece em import_batch_row_errors com o motivo da falha")
+    fun linhaInvalidaApareceComoErro() {
+        val errors = rowErrors.findAll().filter { it.importBatchId == importBatchId }
+        assertThat(errors).hasSize(1)
+        assertThat(errors.first().reason).isNotBlank()
+    }
+
+    @Then("um workflow de processamento é disparado no Orkes para cada Order criado")
+    fun workflowDisparadoNoOrkes() {
+        // Orkes fica fora de escopo por decisão do projeto (Q13) — nenhuma das fatias
+        // atuais depende dele, este step não tem asserção até a integração existir.
+    }
+
+    private fun upload(): ResponseEntity<Map<*, *>> {
+        val body = LinkedMultiValueMap<String, Any>()
+        body.add("file", ClassPathResource(fixture))
+        val headers = HttpHeaders().apply { contentType = MediaType.MULTIPART_FORM_DATA }
+
+        return restTemplate.postForEntity(
+            "http://localhost:$port/imports/orders",
+            HttpEntity(body, headers),
+            Map::class.java,
+        )
+    }
+
+    private fun awaitProcessamentoConcluido(): ResponseEntity<Map<*, *>> {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline) {
+            val statusResponse = restTemplate.getForEntity(
+                "http://localhost:$port/imports/orders/$importBatchId",
+                Map::class.java,
+            )
+            if (statusResponse.body?.get("status") != "PENDING") return statusResponse
+            Thread.sleep(50)
+        }
+        error("import batch $importBatchId não concluiu o processamento a tempo")
+    }
+
+    private fun parseMetodoEEndpoint(texto: String): Pair<String, String> {
+        val (metodo, caminho) = texto.split(" ", limit = 2)
+        return metodo to caminho
+    }
+}

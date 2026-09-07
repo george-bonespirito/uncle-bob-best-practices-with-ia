@@ -2,7 +2,7 @@
 kotlin = "2.0.21"
 springBoot = "3.3.5"
 springDependencyManagement = "1.1.6"
-detekt = "1.23.7"
+detekt = "1.23.8"
 pitest = "1.15.0"
 pitestJunit5 = "1.2.1"
 cucumber = "7.20.1"
@@ -12,14 +12,18 @@ mockk = "1.13.13"
 [libraries]
 cucumber-java = { module = "io.cucumber:cucumber-java", version.ref = "cucumber" }
 cucumber-junit-platform-engine = { module = "io.cucumber:cucumber-junit-platform-engine", version.ref = "cucumber" }
+cucumber-spring = { module = "io.cucumber:cucumber-spring", version.ref = "cucumber" }
 junit-platform-suite = { module = "org.junit.platform:junit-platform-suite" }
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 pitest-junit5 = { module = "org.pitest:pitest-junit5-plugin", version.ref = "pitestJunit5" }
+flyway-core = { module = "org.flywaydb:flyway-core" }
+h2 = { module = "com.h2database:h2" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+kotlin-jpa = { id = "org.jetbrains.kotlin.plugin.jpa", version.ref = "kotlin" }
 spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }
 spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "springDependencyManagement" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kotlin.spring) apply false
+    alias(libs.plugins.kotlin.jpa) apply false
     alias(libs.plugins.spring.boot) apply false
     alias(libs.plugins.spring.dependency.management) apply false
     alias(libs.plugins.detekt) apply false
@@ -28,19 +29,24 @@ subprojects {
         toolchain { languageVersion.set(JavaLanguageVersion.of(21)) }
     }
 
+    // `libs.xxx` (accessor type-safe) não resolve dentro de subprojects{} — limitação
+    // do Gradle. Catálogo acessado explicitamente via VersionCatalogsExtension.
+    val libs = rootProject.extensions.getByType<VersionCatalogsExtension>().named("libs")
+
     dependencies {
         "implementation"("org.springframework.boot:spring-boot-starter-web")
         "implementation"("org.jetbrains.kotlin:kotlin-reflect")
 
         "testImplementation"("org.springframework.boot:spring-boot-starter-test")
-        "testImplementation"(libs.cucumber.java)
-        "testImplementation"(libs.cucumber.junit.platform.engine)
-        "testImplementation"(libs.junit.platform.suite)
-        "testImplementation"(libs.archunit.junit5)
-        "testImplementation"(libs.mockk)
+        "testImplementation"(libs.findLibrary("cucumber-java").get())
+        "testImplementation"(libs.findLibrary("cucumber-junit-platform-engine").get())
+        "testImplementation"(libs.findLibrary("cucumber-spring").get())
+        "testImplementation"(libs.findLibrary("junit-platform-suite").get())
+        "testImplementation"(libs.findLibrary("archunit-junit5").get())
+        "testImplementation"(libs.findLibrary("mockk").get())
         "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
 
-        "pitest"(libs.pitest.junit5)
+        "pitest"(libs.findLibrary("pitest-junit5").get())
     }
 
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
@@ -88,7 +94,7 @@ subprojects {
     // Alvo: domain.policy.*, threshold 80% (ADR order/0005).
     extensions.configure<info.solidsoft.gradle.pitest.PitestPluginExtension> {
         targetClasses.set(setOf("com.bonespirito.*.domain.policy.*"))
-        junit5PluginVersion.set(libs.versions.pitestJunit5.get())
+        junit5PluginVersion.set(libs.findVersion("pitestJunit5").get().requiredVersion)
         mutationThreshold.set(80)
     }
 
