@@ -1,6 +1,9 @@
 package com.bonespirito.order.domain
 
+import jakarta.persistence.AttributeOverride
+import jakarta.persistence.Column
 import jakarta.persistence.Embeddable
+import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
@@ -19,13 +22,18 @@ data class ImportProgress(
     val rowErrorCount: Int = 0,
 )
 
+@Embeddable
+data class UploadedFile(val fileName: String, val fingerprint: String)
+
 @Entity
 @Table(name = "import_batches")
 class ImportBatch(
     @Id
     val id: UUID = UUID.randomUUID(),
 
-    val fileName: String,
+    @Embedded
+    @AttributeOverride(name = "fingerprint", column = Column(name = "file_fingerprint"))
+    val uploadedFile: UploadedFile,
 
     @Enumerated(EnumType.STRING)
     var status: ImportBatchStatus = ImportBatchStatus.PENDING,

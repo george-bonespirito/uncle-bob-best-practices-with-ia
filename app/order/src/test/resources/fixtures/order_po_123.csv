@@ -1,0 +1,2 @@
+source_system_code,source_order_number,customer_id,order_created_at,sku,quantity
+ERP-SAP,PO-123,11111111-1111-1111-1111-111111111111,2026-09-07T09:00:00Z,SKU-9,1
