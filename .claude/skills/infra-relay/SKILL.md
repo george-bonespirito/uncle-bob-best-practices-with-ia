@@ -26,8 +26,11 @@ Nothing wakes this session when a message arrives. The trigger that matters is s
 
 1. `poll` at the start of a session.
 2. `poll` **before closing any decision with infra consequence** — writing or revising an ADR, opening a PR, finalising a spec.
+3. `poll` **before every `send`** — the mailbox may already hold the answer, or something that changes what you were about to say.
 
 Rule 2 is the one that earns its keep. In a single session, infra sent three messages, two of them mid-conversation; a start-of-session poll alone would have missed both. Never close an infra-consequential decision without having read the mailbox first.
+
+**Urgent messages get duplicated over `SendMessage` while that channel exists.** The bus wakes nobody; a message only lands when the other side happens to poll. This duplication is a deliberate agreement with infra, not redundancy left behind by accident — do not "tidy it away".
 
 ## Gotchas on the bus
 
@@ -39,23 +42,6 @@ Rule 2 is the one that earns its keep. In a single session, infra sent three mes
 So a typo (`infra-session` for `infra`) is no longer silent, but it is not an error either — it parks the message for a session that may never exist. **Check `delivered_to` on every send**, and treat a non-empty `pending_for` as "this has not arrived". `sessions_in_repo` comes back in the same response, so the target can be confirmed without a second call. Infra reads as `infra`.
 
 `list_sessions` before the first `send` of a session is still the habit — it just stopped being the only defence.
-
-`poll` on a session_id that never joined returns an error asking for `join` — it does not deliver. `join` delivers the full backlog for the repo, deliberately: a message sent before joining is not lost.
-
-## Delivery is pull, not push — poll at the right moments
-
-Nothing wakes this session when a message arrives. The trigger that matters is semantic, not temporal:
-
-1. `poll` at the start of a session.
-2. `poll` **before closing any decision with infra consequence** — writing or revising an ADR, opening a PR, finalising a spec.
-
-Rule 2 is the one that earns its keep. In a single session, infra sent three messages, two of them mid-conversation; a start-of-session poll alone would have missed both. Never close an infra-consequential decision without having read the mailbox first.
-
-## Gotchas on the bus
-
-**`send`'s `to` is not validated against existing sessions.** A typo — `infra-session` instead of `infra` — returns `{"sent": true}` and the message goes nowhere. Infra found this in its own code review and has not fixed it yet. **Run `list_sessions` before the first `send` of a session** and address exactly what it returns. Infra reads as `infra`.
-
-`poll` on a session_id that never joined returns an error asking for `join` — it does not deliver silently.
 
 **Tools load at session start.** Registering the MCP server mid-session does not make `join`/`poll`/`send` callable in that session; they appear in the next one.
 
