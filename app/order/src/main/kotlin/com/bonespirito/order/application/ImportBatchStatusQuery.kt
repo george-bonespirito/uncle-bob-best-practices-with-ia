@@ -13,4 +13,5 @@ data class ImportBatchStatusView(
     val totalRows: Int?,
     val processedRows: Int,
     val ordersCreated: Int,
+    val rowErrorCount: Int,
 )

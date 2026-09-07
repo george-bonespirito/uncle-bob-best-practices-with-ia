@@ -16,6 +16,7 @@ data class ImportProgress(
     val totalRows: Int? = null,
     val processedRows: Int = 0,
     val ordersCreated: Int = 0,
+    val rowErrorCount: Int = 0,
 )
 
 @Entity
@@ -34,8 +35,8 @@ class ImportBatch(
     val createdAt: Instant = Instant.now(),
     var completedAt: Instant? = null,
 ) {
-    fun markCompleted() {
-        status = ImportBatchStatus.COMPLETED
+    fun finish(hasErrors: Boolean) {
+        status = if (hasErrors) ImportBatchStatus.COMPLETED_WITH_ERRORS else ImportBatchStatus.COMPLETED
         completedAt = Instant.now()
     }
 }

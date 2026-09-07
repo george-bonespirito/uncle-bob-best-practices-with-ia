@@ -17,7 +17,6 @@ Feature: Importação em massa de pedidos via planilha
     And "ordersCreated" é 3
     And um workflow de processamento é disparado no Orkes para cada Order criado
 
-  @pending
   Scenario: Linha inválida não bloqueia as demais, aparece no status final
     Given uma planilha .csv com linhas de 3 pedidos, sendo 1 com dado de cliente ausente
     When o usuário faz upload e aguarda o processamento terminar

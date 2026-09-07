@@ -1,5 +1,6 @@
 package com.bonespirito.order.acceptance
 
+import com.bonespirito.order.application.port.ImportBatchRowErrorRepository
 import io.cucumber.java.en.Given
 import io.cucumber.java.en.Then
 import io.cucumber.java.en.When
@@ -17,14 +18,22 @@ import java.util.UUID
 
 class BulkImportSteps(
     private val restTemplate: TestRestTemplate,
+    private val rowErrors: ImportBatchRowErrorRepository,
     @LocalServerPort private val port: Int,
 ) {
     private lateinit var response: ResponseEntity<Map<*, *>>
     private lateinit var importBatchId: UUID
+    private var fixture = "fixtures/three_valid_orders.csv"
 
     @Given("uma planilha .csv com linhas de {int} pedidos válidos \\(cabeçalho repetido por linha de item\\)")
     fun planilhaComPedidosValidos(quantidadeDePedidos: Int) {
         assertThat(quantidadeDePedidos).isEqualTo(3) // fixture fixa cobre este caso
+    }
+
+    @Given("uma planilha .csv com linhas de {int} pedidos, sendo 1 com dado de cliente ausente")
+    fun planilhaComClienteAusente(quantidadeDePedidos: Int) {
+        assertThat(quantidadeDePedidos).isEqualTo(3) // fixture fixa cobre este caso
+        fixture = "fixtures/three_orders_missing_customer.csv"
     }
 
     @Given("um importBatchId de uma planilha com {int} pedidos válidos, já processada")
@@ -41,6 +50,13 @@ class BulkImportSteps(
         val (metodo, _) = parseMetodoEEndpoint(metodoEEndpoint)
         check(metodo == "POST") { "método não suportado neste step: $metodo" }
         response = upload()
+    }
+
+    @When("o usuário faz upload e aguarda o processamento terminar")
+    fun uploadEAguardaProcessamento() {
+        val uploadResponse = upload()
+        importBatchId = UUID.fromString(uploadResponse.body?.get("importBatchId") as String)
+        response = awaitProcessamentoConcluido()
     }
 
     @When("o usuário consulta {string}")
@@ -77,6 +93,18 @@ class BulkImportSteps(
         assertThat((response.body?.get(campo) as Number).toInt()).isEqualTo(valor)
     }
 
+    @Then("o status final é {string}")
+    fun statusFinalEIgualA(status: String) {
+        assertThat(response.body?.get("status")).isEqualTo(status)
+    }
+
+    @Then("a linha inválida aparece em import_batch_row_errors com o motivo da falha")
+    fun linhaInvalidaApareceComoErro() {
+        val errors = rowErrors.findAll().filter { it.importBatchId == importBatchId }
+        assertThat(errors).hasSize(1)
+        assertThat(errors.first().reason).isNotBlank()
+    }
+
     @Then("um workflow de processamento é disparado no Orkes para cada Order criado")
     fun workflowDisparadoNoOrkes() {
         // Orkes fica fora de escopo por decisão do projeto (Q13) — nenhuma das fatias
@@ -85,7 +113,7 @@ class BulkImportSteps(
 
     private fun upload(): ResponseEntity<Map<*, *>> {
         val body = LinkedMultiValueMap<String, Any>()
-        body.add("file", ClassPathResource("fixtures/three_valid_orders.csv"))
+        body.add("file", ClassPathResource(fixture))
         val headers = HttpHeaders().apply { contentType = MediaType.MULTIPART_FORM_DATA }
 
         return restTemplate.postForEntity(

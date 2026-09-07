@@ -1,12 +1,15 @@
 package com.bonespirito.order.application
 
 import com.bonespirito.order.application.port.ImportBatchRepository
+import com.bonespirito.order.application.port.ImportBatchRowErrorRepository
 import com.bonespirito.order.application.port.ImportFileParser
 import com.bonespirito.order.application.port.OrderRepository
 import com.bonespirito.order.domain.ImportBatch
+import com.bonespirito.order.domain.ImportBatchRowError
 import com.bonespirito.order.domain.ImportBatchStatus
 import com.bonespirito.order.domain.ImportRow
 import com.bonespirito.order.domain.Order
+import com.bonespirito.order.domain.policy.ParsedRow
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -23,9 +26,10 @@ class ImportOrdersServiceTest {
 
     private val importBatches = mockk<ImportBatchRepository>()
     private val orders = mockk<OrderRepository>()
+    private val rowErrors = mockk<ImportBatchRowErrorRepository>()
     private val parser = mockk<ImportFileParser>()
     private val executor = Executors.newSingleThreadExecutor()
-    private val service = ImportOrdersService(importBatches, orders, parser, executor)
+    private val service = ImportOrdersService(importBatches, orders, rowErrors, parser, executor)
 
     @Test
     fun `aceita o upload, persiste o batch como PENDING com a contagem de linhas e devolve o id`() {
@@ -50,8 +54,8 @@ class ImportOrdersServiceTest {
         every { importBatches.findById(batch.id) } returns Optional.of(batch)
         every { orders.save(any()) } answers { firstArg() }
         every { parser.parse(any()) } returns listOf(
-            ImportRow("ERP-SAP", "PO-001", UUID.randomUUID(), Instant.now(), "SKU-1", 2),
-            ImportRow("ERP-SAP", "PO-002", UUID.randomUUID(), Instant.now(), "SKU-2", 1),
+            ParsedRow.Valid(ImportRow("ERP-SAP", "PO-001", UUID.randomUUID(), Instant.now(), "SKU-1", 2)),
+            ParsedRow.Valid(ImportRow("ERP-SAP", "PO-002", UUID.randomUUID(), Instant.now(), "SKU-2", 1)),
         )
 
         service.startImport("orders.csv", "header\nrow1\nrow2".byteInputStream())
@@ -63,6 +67,31 @@ class ImportOrdersServiceTest {
         assertThat(batch.progress.ordersCreated).isEqualTo(2)
         verify(exactly = 2) { orders.save(any<Order>()) }
         verify { importBatches.save(batch) }
+    }
+
+    @Test
+    fun `linha invalida nao vira Order, gera erro e marca o batch como COMPLETED_WITH_ERRORS`() {
+        val batch = ImportBatch(fileName = "orders.csv")
+        every { importBatches.save(any()) } returns batch
+        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { orders.save(any()) } answers { firstArg() }
+        every { rowErrors.save(any()) } answers { firstArg() }
+        every { parser.parse(any()) } returns listOf(
+            ParsedRow.Valid(ImportRow("ERP-SAP", "PO-001", UUID.randomUUID(), Instant.now(), "SKU-1", 2)),
+            ParsedRow.Invalid(rowNumber = 2, reason = "customer_id ausente"),
+        )
+
+        service.startImport("orders.csv", "header\nrow1\nrow2".byteInputStream())
+        executor.shutdown()
+        executor.awaitTermination(1, TimeUnit.SECONDS)
+
+        assertThat(batch.status).isEqualTo(ImportBatchStatus.COMPLETED_WITH_ERRORS)
+        assertThat(batch.progress.ordersCreated).isEqualTo(1)
+        assertThat(batch.progress.rowErrorCount).isEqualTo(1)
+        verify(exactly = 1) { orders.save(any<Order>()) }
+        verify {
+            rowErrors.save(match<ImportBatchRowError> { it.reason == "customer_id ausente" && it.rowNumber == 2 })
+        }
     }
 
     @Test

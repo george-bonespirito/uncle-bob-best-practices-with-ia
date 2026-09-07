@@ -39,6 +39,7 @@ class ImportOrdersController(
                 totalRows = view.totalRows,
                 processedRows = view.processedRows,
                 ordersCreated = view.ordersCreated,
+                rowErrorCount = view.rowErrorCount,
             ),
         )
     }
@@ -52,4 +53,5 @@ data class ImportBatchStatusResponse(
     val totalRows: Int?,
     val processedRows: Int,
     val ordersCreated: Int,
+    val rowErrorCount: Int,
 )

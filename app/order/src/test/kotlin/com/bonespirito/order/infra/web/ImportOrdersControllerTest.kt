@@ -55,6 +55,7 @@ class ImportOrdersControllerTest {
                 totalRows = 3,
                 processedRows = 3,
                 ordersCreated = 3,
+                rowErrorCount = 0,
             )
 
         val response = controller.status(batchId)

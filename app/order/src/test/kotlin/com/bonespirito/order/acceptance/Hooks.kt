@@ -9,6 +9,7 @@ class Hooks(private val jdbcTemplate: JdbcTemplate) {
     fun limpaEstadoEntreCenarios() {
         jdbcTemplate.execute("DELETE FROM order_items")
         jdbcTemplate.execute("DELETE FROM orders")
+        jdbcTemplate.execute("DELETE FROM import_batch_row_errors")
         jdbcTemplate.execute("DELETE FROM import_batches")
     }
 }
