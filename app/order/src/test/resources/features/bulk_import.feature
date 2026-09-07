@@ -1,4 +1,3 @@
-@pending
 Feature: Importação em massa de pedidos via planilha
 
   Como usuário do sistema
@@ -11,6 +10,7 @@ Feature: Importação em massa de pedidos via planilha
     Then a API responde "202 Accepted" com um importBatchId e status "PENDING"
     And o processamento roda em background, sem o cliente esperar a resposta
 
+  @pending
   Scenario: Consulta de status reflete o resultado após o processamento
     Given um importBatchId de uma planilha com 3 pedidos válidos, já processada
     When o usuário consulta "GET /imports/orders/{importBatchId}"
@@ -18,6 +18,7 @@ Feature: Importação em massa de pedidos via planilha
     And "ordersCreated" é 3
     And um workflow de processamento é disparado no Orkes para cada Order criado
 
+  @pending
   Scenario: Linha inválida não bloqueia as demais, aparece no status final
     Given uma planilha .csv com linhas de 3 pedidos, sendo 1 com dado de cliente ausente
     When o usuário faz upload e aguarda o processamento terminar
@@ -25,12 +26,14 @@ Feature: Importação em massa de pedidos via planilha
     And "ordersCreated" é 2
     And a linha inválida aparece em import_batch_row_errors com o motivo da falha
 
+  @pending
   Scenario: Reenvio do mesmo arquivo é recusado no upload
     Given uma planilha .csv já importada com sucesso
     When o usuário faz upload do mesmo arquivo novamente para "POST /imports/orders"
     Then a API responde "409 Conflict" com o importBatchId do lote original
     And nenhum Import Batch novo é criado
 
+  @pending
   Scenario: Import não consulta outro microsserviço para validar cliente ou produto
     Given uma planilha .csv com linhas de 3 pedidos, sendo 1 com um customer_id que não existe no MS Customers
     When o usuário faz upload e aguarda o processamento terminar
@@ -38,6 +41,7 @@ Feature: Importação em massa de pedidos via planilha
     And nenhuma linha aparece em import_batch_row_errors por causa do customer_id
     And a existência do cliente é verificada de forma assíncrona, na Processing Step de Data Enrichment
 
+  @pending
   Scenario: Pedido duplicado (mesma origem + mesmo número) não gera Order duplicado
     Given um Order já importado com source_system_code "ERP-SAP" e source_order_number "PO-123"
     When uma nova planilha traz uma linha com o mesmo source_system_code e source_order_number
