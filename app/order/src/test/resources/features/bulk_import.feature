@@ -10,7 +10,6 @@ Feature: Importação em massa de pedidos via planilha
     Then a API responde "202 Accepted" com um importBatchId e status "PENDING"
     And o processamento roda em background, sem o cliente esperar a resposta
 
-  @pending
   Scenario: Consulta de status reflete o resultado após o processamento
     Given um importBatchId de uma planilha com 3 pedidos válidos, já processada
     When o usuário consulta "GET /imports/orders/{importBatchId}"
