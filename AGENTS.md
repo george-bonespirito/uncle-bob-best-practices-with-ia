@@ -109,12 +109,14 @@ If a session has neither transport, ask the user to perform the write. An unreac
 
 ## Cross-session infra relay
 
-This session (application design) coordinates with a separate infra session (`bonespirito-cluster-k3s-infra`) via `SendMessage`. Rules:
+This session (application design) coordinates with a separate infra session (`bonespirito-cluster-k3s-infra`) over **mcp-bus**, an MCP barramento at `https://mcp.lab.bonespirito.com/mcp` (this session's id there: `app-design`). Rules:
 - **This session is the user's single point of contact** — never tell the user to talk to infra directly
-- Resolve session name fresh via `ListAgents` every time (names change between sessions)
+- Delivery is pull: `poll` at session start **and** before closing any infra-consequential decision (ADR, PR, spec)
 - Frame proposals as coming from the user ("George pediu X")
 - Never write/commit to the infra repo directly
 - When infra pushes an FYI, only reply if the app side depends on it
+
+**Gotcha**: `send`'s `to` is not validated — a typo returns `{"sent": true}` and the message vanishes. Run `list_sessions` first. Details in `.claude/skills/infra-relay/`.
 
 ## Triage labels (mattpocock/skills convention)
 
@@ -132,7 +134,7 @@ C4 diagrams are `.drawio.svg` — SVG with draw.io XML embedded. Open in browser
 
 ## Skills and agents in this repo
 
-- **`.claude/skills/infra-relay/`** — protocol for messaging the infra session. Load before `SendMessage`.
+- **`.claude/skills/infra-relay/`** — protocol for messaging the infra session over mcp-bus. Load before polling or sending.
 - **`.claude/skills/issue-ops/`** — tracker habits (check-before-create, Wayfinder body conventions, transport choice). Load before creating, commenting on, or editing any issue.
 - **`.claude/agents/gherkin-consistency-reviewer.md`** — reviews `.feature` files against ADRs and CONTEXT.md for drift. No implementation exists, so this is the only consistency check.
 
