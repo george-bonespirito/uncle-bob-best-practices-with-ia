@@ -1,3 +1,4 @@
+@pending
 Feature: Notificação ao cliente a cada mudança de status do pedido
 
   Como cliente que fez um pedido

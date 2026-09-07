@@ -1,0 +1,10 @@
+# Sobrepõe o default do Detekt apenas onde o PRD define número próprio.
+# Complexidade ciclomática: 12 (limite de código gerado por agente).
+complexity:
+  CyclomaticComplexMethod:
+    threshold: 12
+  LongMethod:
+    threshold: 60
+  TooManyFunctions:
+    thresholdInClasses: 15
+    thresholdInFiles: 15

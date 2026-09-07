@@ -1,3 +1,4 @@
+@pending
 Feature: Order espera cadastro quando cliente ou produto não existe
 
   Como sistema

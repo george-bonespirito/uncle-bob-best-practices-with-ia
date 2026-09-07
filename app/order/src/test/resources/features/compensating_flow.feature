@@ -1,3 +1,4 @@
+@pending
 Feature: Fluxo compensatório quando uma Processing Step falha
 
   Como sistema

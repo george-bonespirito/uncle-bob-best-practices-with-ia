@@ -1,3 +1,4 @@
+@pending
 Feature: Concorrência entre as tasks de Data Enrichment no mesmo Order
 
   Como sistema

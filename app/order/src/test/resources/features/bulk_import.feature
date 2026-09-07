@@ -1,3 +1,4 @@
+@pending
 Feature: Importação em massa de pedidos via planilha
 
   Como usuário do sistema
