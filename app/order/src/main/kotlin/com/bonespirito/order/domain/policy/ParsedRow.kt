@@ -1,11 +1,12 @@
 package com.bonespirito.order.domain.policy
 
 import com.bonespirito.order.domain.ImportRow
+import com.bonespirito.order.domain.NumberedRow
 import java.time.Instant
 import java.util.UUID
 
 sealed interface ParsedRow {
-    data class Valid(val row: ImportRow) : ParsedRow
+    data class Valid(val numberedRow: NumberedRow) : ParsedRow
     data class Invalid(val rowNumber: Int, val reason: String) : ParsedRow
 }
 
@@ -38,15 +39,14 @@ fun validateRow(rowNumber: Int, columns: List<String>): ParsedRow {
 
     return missingFieldReason?.let { ParsedRow.Invalid(rowNumber, it) }
         ?: runCatching {
-            ParsedRow.Valid(
-                ImportRow(
-                    sourceSystemCode = sourceSystemCode,
-                    sourceOrderNumber = sourceOrderNumber,
-                    customerId = UUID.fromString(customerId),
-                    orderCreatedAt = Instant.parse(orderCreatedAt),
-                    sku = sku,
-                    quantity = quantity.trim().toInt(),
-                ),
+            val row = ImportRow(
+                sourceSystemCode = sourceSystemCode,
+                sourceOrderNumber = sourceOrderNumber,
+                customerId = UUID.fromString(customerId),
+                orderCreatedAt = Instant.parse(orderCreatedAt),
+                sku = sku,
+                quantity = quantity.trim().toInt(),
             )
+            ParsedRow.Valid(NumberedRow(rowNumber, row))
         }.getOrElse { ParsedRow.Invalid(rowNumber, "linha em formato inválido: ${it.message}") }
 }

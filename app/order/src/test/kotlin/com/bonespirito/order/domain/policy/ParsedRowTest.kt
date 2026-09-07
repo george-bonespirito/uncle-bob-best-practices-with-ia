@@ -19,9 +19,10 @@ class ParsedRowTest {
         val result = validateRow(1, validColumns)
 
         assertThat(result).isInstanceOf(ParsedRow.Valid::class.java)
-        val row = (result as ParsedRow.Valid).row
-        assertThat(row.sourceOrderNumber).isEqualTo("PO-001")
-        assertThat(row.quantity).isEqualTo(2)
+        val numberedRow = (result as ParsedRow.Valid).numberedRow
+        assertThat(numberedRow.rowNumber).isEqualTo(1)
+        assertThat(numberedRow.row.sourceOrderNumber).isEqualTo("PO-001")
+        assertThat(numberedRow.row.quantity).isEqualTo(2)
     }
 
     @Test
