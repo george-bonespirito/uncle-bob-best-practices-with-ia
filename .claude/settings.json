@@ -10,7 +10,7 @@
           },
           {
             "type": "command",
-            "command": "python3 -c 'import json,sys\ntry:\n    c = (json.load(sys.stdin).get(\"tool_input\") or {}).get(\"command\") or \"\"\nexcept Exception:\n    sys.exit(0)\nif \"tea issues create\" in c:\n    print(json.dumps({\"systemMessage\":\"Lembrete: rode tea issues list --keyword antes de criar, pra evitar duplicata.\",\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\",\"additionalContext\":\"Antes de criar esta issue, confirme que nao existe uma similar: tea issues list --keyword <termo relevante> (ou --labels wayfinder:map se for um mapa).\"}}))\n' 2>>~/.claude/hook-errors.log || true"
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/issue-dup-guard.py\" 2>>~/.claude/hook-errors.log || true"
           }
         ]
       }

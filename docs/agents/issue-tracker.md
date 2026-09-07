@@ -4,41 +4,35 @@ Issues for this repo live as **Codeberg Issues (Forgejo)** on `torgge/uncle-bob-
 
 **The repo is private.** There is no anonymous read: an unauthenticated API call returns `404`, the same as for a repo that doesn't exist. Every tracker operation — including merely listing issues — needs a credential. This is the real prerequisite; the tool used to carry it is secondary.
 
-## Two transports, same tracker
+## Transport: the Forgejo REST API
 
-The conventions below are written in terms of **operations**, not commands. Use whichever transport the current environment actually has:
+**The `tea` CLI is no longer used in this project.** Don't reach for it, don't reinstate it in docs, and don't treat its absence as a missing transport. Every operation goes through the Forgejo REST API.
 
-| | `tea` CLI | Forgejo REST API |
-|---|---|---|
-| Available on | George's workstation (login `torgge` preconfigured) | anywhere with a token |
-| Auth | already configured | `Authorization: token <TOKEN>`, scope `write:repository` |
-| Good for | interactive/manual work | agent sessions, CI, the llm-server |
+Auth: `Authorization: token <TOKEN>`, scope `write:repository`. On George's workstation the token is in `CODEBERG_ACCESS_TOKEN`.
 
-Neither is required by the workflow. If a session has neither, it **reads the tracker via the Codeberg web UI and asks the user to perform writes** — it does not skip the check-before-create rule (see below) on the grounds that the tracker was inconvenient to reach.
+If a session has no token, it **reads the tracker via the Codeberg web UI and asks the user to perform writes** — it does not skip the check-before-create rule (see below) on the grounds that the tracker was inconvenient to reach.
 
 ### Operation reference
 
 `API` below is `https://codeberg.org/api/v1/repos/torgge/uncle-bob-best-practices-with-ia`.
 
-| Operation | `tea` | API |
-|---|---|---|
-| List issues | `tea issues list --state open [--labels ...] [--keyword ...]` | `GET $API/issues?state=open&labels=...&q=...` |
-| Read issue + comments | `tea issues <n> --comments` | `GET $API/issues/<n>` + `GET $API/issues/<n>/comments` |
-| Create issue | `tea issues create --title "..." --description "..."` | `POST $API/issues` — `{"title":..., "body":...}` |
-| Comment | `tea comment <n> "..."` | `POST $API/issues/<n>/comments` — `{"body":...}` |
-| Add labels | `tea issues edit <n> --add-labels "..."` | `POST $API/issues/<n>/labels` |
-| Assign | `tea issues edit <n> --add-assignees <user>` | `PATCH $API/issues/<n>` — `{"assignees":[...]}` |
-| Close / reopen | `tea issues close <n>` / `tea issues reopen <n>` | `PATCH $API/issues/<n>` — `{"state":"closed"｜"open"}` |
+| Operation | Call |
+|---|---|
+| List issues | `GET $API/issues?state=open&labels=...&q=...` |
+| Read issue + comments | `GET $API/issues/<n>` + `GET $API/issues/<n>/comments` |
+| Create issue | `POST $API/issues` — `{"title":..., "body":...}` |
+| Comment | `POST $API/issues/<n>/comments` — `{"body":...}` |
+| Add labels | `POST $API/issues/<n>/labels` |
+| Assign | `PATCH $API/issues/<n>` — `{"assignees":[...]}` |
+| Close / reopen | `PATCH $API/issues/<n>` — `{"state":"closed"｜"open"}` |
+| Open a PR | `POST $API/pulls` — `{"title":..., "body":..., "head":"<branch>", "base":"main"}` |
 
 Two API details to verify on first use rather than assume:
 
 - **Labels may be sent as IDs, not names**, depending on the Forgejo version. Fetch `GET $API/labels` first and map name → id if the name form is rejected.
-- **`q=` is a substring search over title and body**, not the same matcher as `tea --keyword`. When checking for duplicates, try more than one fragment before concluding nothing exists.
+- **`q=` is a substring search over title and body**, so it misses paraphrases. When checking for duplicates, try more than one fragment before concluding nothing exists.
 
-## Conventions
-
-- **Repo inference**: `tea` infers the repo from cwd inside this clone; pass `--repo torgge/uncle-bob-best-practices-with-ia` when running elsewhere.
-- **`tea comment` multi-line bug** (transport-specific, `tea` v0.14.1): a body containing a newline hangs indefinitely; single-line bodies post instantly. Split a multi-paragraph comment into one call per paragraph, and never retry the multi-line form. `tea issues edit --description` handles multi-line fine — the bug is specific to `comment`. **The API has no such limitation**; a multi-paragraph body in `POST .../comments` is fine.
+Bodies are JSON, so multi-paragraph text is fine everywhere — pass the payload from a file (`-d @file.json`) rather than inlining a long body in the shell.
 
 ## Pull requests as a triage surface
 

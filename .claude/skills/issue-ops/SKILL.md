@@ -1,6 +1,6 @@
 ---
 name: issue-ops
-description: Habits for working with this repo's Codeberg issue tracker — check-before-create, Wayfinder body conventions, and picking a transport (tea CLI or Forgejo API) for the environment at hand. Load before creating, commenting on, or editing any issue.
+description: Habits for working with this repo's Codeberg issue tracker — check-before-create, Wayfinder body conventions, and reaching the tracker over the Forgejo REST API. Load before creating, commenting on, or editing any issue.
 user-invocable: false
 ---
 
@@ -18,14 +18,13 @@ Search by a distinctive fragment of the title (and for a map, by the `wayfinder:
 
 ## Reaching the tracker
 
-The repo is **private**, so there is no anonymous read — every operation needs a credential. Two transports carry the same operations:
+The repo is **private**, so there is no anonymous read — every operation needs a credential. There is one transport: the **Forgejo REST API** (`Authorization: token <TOKEN>`, scope `write:repository`; on George's workstation the token is in `CODEBERG_ACCESS_TOKEN`).
 
-- **`tea` CLI** — on George's workstation, login already configured.
-- **Forgejo REST API** — anywhere with a token (`Authorization: token <TOKEN>`, scope `write:repository`). This is the path for agent sessions on the llm-server, where `tea` is not installed.
+**The `tea` CLI is no longer used in this project.** It is not a fallback and not an alternative — don't reach for it, and don't reinstate it in docs.
 
 `docs/agents/issue-tracker.md` has the operation-by-operation mapping.
 
-**If the session has neither**, say so and ask the user to run the write — do **not** treat an unreachable tracker as licence to skip check-before-create. Creating a duplicate is worse than pausing to ask.
+**If the session has no token**, say so and ask the user to run the write — do **not** treat an unreachable tracker as licence to skip check-before-create. Creating a duplicate is worse than pausing to ask.
 
 ## Wayfinder conventions
 
@@ -36,8 +35,6 @@ The repo is **private**, so there is no anonymous read — every operation needs
 - **Claim**: assign the ticket to yourself — first write, before any other work on it.
 - **Resolve**: comment the answer, close the ticket, then update the map's `Decisions so far` with a link + one-line gist.
 
-## Transport gotcha: `tea comment` and newlines
+## Long bodies
 
-`tea comment <n> "..."` hangs indefinitely on a body containing a newline (confirmed `tea` v0.14.1); single-line bodies post instantly. Never retry the multi-line form — it will hang again. Split a multi-paragraph resolution into one call per paragraph. `tea issues edit --description` handles multi-line fine, so the bug is specific to `comment`, not to argument passing.
-
-This is a `tea` bug, not a tracker limitation — **the API accepts multi-paragraph comment bodies normally.**
+The API takes multi-paragraph bodies without trouble — a resolution comment, a map body, a PR description all go in one call. Pass the payload from a file (`curl -d @body.json`) instead of inlining it: a long body inlined in the shell is where quoting and newlines go wrong.
