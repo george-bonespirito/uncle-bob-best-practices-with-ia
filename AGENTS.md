@@ -116,7 +116,7 @@ This session (application design) coordinates with a separate infra session (`bo
 - Never write/commit to the infra repo directly
 - When infra pushes an FYI, only reply if the app side depends on it
 
-**Gotcha**: `send`'s `to` is not validated — a typo returns `{"sent": true}` and the message vanishes. Run `list_sessions` first. Details in `.claude/skills/infra-relay/`.
+**Gotcha**: `send` returns `sent: true` even when nobody received it — the message is parked until the target joins. Check `delivered_to` in the response, not `sent`. Details in `.claude/skills/infra-relay/`.
 
 ## Triage labels (mattpocock/skills convention)
 
