@@ -94,18 +94,13 @@ The alternative, which supports a multi-line body: push the branch normally and 
 
 The repo is **private** — there is no anonymous read, and an unauthenticated API call returns `404` rather than an empty result. Every tracker operation needs a credential.
 
-Two transports carry the same operations; the workflow depends on neither:
-
-- **`tea` CLI** — George's workstation, login `torgge` preconfigured. **Not installed on the llm-server.**
-- **Forgejo REST API** — anywhere with a token (`Authorization: token <TOKEN>`, scope `write:repository`).
+Everything goes through the **Forgejo REST API** — a token with scope `write:repository`, sent as `Authorization: token <TOKEN>` (on George's workstation: `CODEBERG_ACCESS_TOKEN`). **The `tea` CLI is no longer used here**; don't reach for it and don't put it back in docs.
 
 Full operation mapping in `docs/agents/issue-tracker.md`.
 
 **Before creating anything**: search the tracker for an existing issue. Maps and child tickets were duplicated once when compaction erased conversation memory — **compaction erases conversation memory, not tracker state**, so "I don't remember this ticket" is evidence about the session, not the tracker.
 
-If a session has neither transport, ask the user to perform the write. An unreachable tracker is not licence to skip the duplicate check.
-
-**`tea` gotcha**: `tea comment` hangs forever on a body containing a newline (v0.14.1) — one call per paragraph. The API has no such limit.
+If a session has no token, ask the user to perform the write. An unreachable tracker is not licence to skip the duplicate check.
 
 ## Cross-session infra relay
 

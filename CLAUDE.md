@@ -13,7 +13,7 @@ Dois territórios sem relação entre si:
 
 ### Issue tracker
 
-Codeberg Issues (Forgejo), repo privado — toda operação exige credencial. Dois transportes: `tea` CLI (workstation do George) ou API REST do Forgejo com token (demais ambientes). See `docs/agents/issue-tracker.md`.
+Codeberg Issues (Forgejo), repo privado — toda operação exige credencial. Transporte único: API REST do Forgejo com token. O `tea` CLI **não é mais usado neste projeto**. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
