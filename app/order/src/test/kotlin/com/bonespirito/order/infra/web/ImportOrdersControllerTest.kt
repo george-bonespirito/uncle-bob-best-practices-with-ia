@@ -1,9 +1,9 @@
 package com.bonespirito.order.infra.web
 
-import com.bonespirito.order.application.ImportBatchAccepted
 import com.bonespirito.order.application.ImportBatchStatusQuery
 import com.bonespirito.order.application.ImportBatchStatusView
 import com.bonespirito.order.application.ImportOrders
+import com.bonespirito.order.application.ImportUploadResult
 import com.bonespirito.order.domain.ImportBatchStatus
 import io.mockk.every
 import io.mockk.mockk
@@ -25,7 +25,7 @@ class ImportOrdersControllerTest {
         val file = MockMultipartFile("file", "orders.csv", "text/csv", "data".toByteArray())
         val batchId = UUID.randomUUID()
         every { importOrders.startImport("orders.csv", any()) } returns
-            ImportBatchAccepted(batchId, ImportBatchStatus.PENDING)
+            ImportUploadResult.Accepted(batchId, ImportBatchStatus.PENDING)
 
         val response = controller.upload(file)
 
@@ -38,11 +38,25 @@ class ImportOrdersControllerTest {
     fun `usa o nome do campo do multipart quando o arquivo nao tem nome original`() {
         val file = MockMultipartFile("file", null, "text/csv", "data".toByteArray())
         every { importOrders.startImport("file", any()) } returns
-            ImportBatchAccepted(UUID.randomUUID(), ImportBatchStatus.PENDING)
+            ImportUploadResult.Accepted(UUID.randomUUID(), ImportBatchStatus.PENDING)
 
         controller.upload(file)
 
         verify { importOrders.startImport("file", any()) }
+    }
+
+    @Test
+    fun `devolve 409 com o batch original quando o arquivo ja foi importado`() {
+        val file = MockMultipartFile("file", "orders.csv", "text/csv", "data".toByteArray())
+        val originalBatchId = UUID.randomUUID()
+        every { importOrders.startImport("orders.csv", any()) } returns
+            ImportUploadResult.DuplicateFile(originalBatchId, ImportBatchStatus.COMPLETED)
+
+        val response = controller.upload(file)
+
+        assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
+        assertThat(response.body?.importBatchId).isEqualTo(originalBatchId)
+        assertThat(response.body?.status).isEqualTo("COMPLETED")
     }
 
     @Test

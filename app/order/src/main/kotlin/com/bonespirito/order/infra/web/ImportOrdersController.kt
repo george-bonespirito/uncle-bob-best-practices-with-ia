@@ -2,6 +2,7 @@ package com.bonespirito.order.infra.web
 
 import com.bonespirito.order.application.ImportBatchStatusQuery
 import com.bonespirito.order.application.ImportOrders
+import com.bonespirito.order.application.ImportUploadResult
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -24,9 +25,12 @@ class ImportOrdersController(
     @PostMapping(consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun upload(@RequestParam("file") file: MultipartFile): ResponseEntity<ImportBatchResponse> {
         val fileName = file.originalFilename?.ifBlank { null } ?: file.name
-        val accepted = importOrders.startImport(fileName, file.inputStream)
-        return ResponseEntity.status(HttpStatus.ACCEPTED)
-            .body(ImportBatchResponse(accepted.importBatchId, accepted.status.name))
+        return when (val result = importOrders.startImport(fileName, file.inputStream)) {
+            is ImportUploadResult.Accepted -> ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(ImportBatchResponse(result.importBatchId, result.status.name))
+            is ImportUploadResult.DuplicateFile -> ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ImportBatchResponse(result.existingImportBatchId, result.existingStatus.name))
+        }
     }
 
     @GetMapping("/{importBatchId}")
