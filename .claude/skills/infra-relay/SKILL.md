@@ -47,9 +47,9 @@ Rule 2 is the one that earns its keep. In a single session, infra sent three mes
 **`to` is required, and `send` never fails on an unknown one — read the response instead.** `to` is a session_id (DM), `ALL` (broadcast), or a Role (claim queue). The send is always accepted, deliberately: the message is stored and delivered whenever the target joins, which is what makes the backlog work. The response says whether it actually reached anyone:
 
 - delivered — `delivered_to: ["infra"]`
-- not delivered yet — `delivered_to: []` plus a non-empty `pending_for`, alongside the squad's session list and a warning
+- not delivered yet — `delivered_to: []` plus a non-empty `pending_for`, alongside `sessions_in_squad` / `roles_in_squad` and a warning
 
-So a typo (`infra-session` for `infra`) is no longer silent, but it is not an error either — it parks the message for a session that may never exist; the same goes for a Role nobody holds. **Check `delivered_to` on every send**, and treat a non-empty `pending_for` as "this has not arrived". The session list comes back in the same response, so the target can be confirmed without a second call. Infra reads as `infra`.
+So a typo (`infra-session` for `infra`) is no longer silent, but it is not an error either — it parks the message for a session that may never exist; the same goes for a Role nobody holds. **Check `delivered_to` on every send**, and treat a non-empty `pending_for` as "this has not arrived". `sessions_in_squad` and `roles_in_squad` come back in the same response, so a target can be confirmed without a second call. Infra reads as `infra`.
 
 `list_sessions(squad)` before the first `send` of a session is still the habit — it just stopped being the only defence.
 
