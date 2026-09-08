@@ -77,7 +77,11 @@ So a typo (`infra-session` for `infra`) is no longer silent, but it is not an er
 
 `list_sessions(squad)` before the first `send` of a session is still the habit — it just stopped being the only defence.
 
-**A re-`join` redelivers the whole backlog.** `join` handing over the full history is deliberate — it is what stops a message sent before joining from being lost — but it also fires on a *re*-join, so fixing a wrong role replays every message the squad ever sent, already-read ones included. Observed here: two re-joins to correct the role made a watcher replay six old messages as if new. Anything polling on a schedule should dedupe on message `id`, not assume delivery means new.
+**`leave` + `join` redelivers the whole backlog; a plain re-`join` does not.** A first `join` handing over the full history is deliberate — it is what stops a message sent before joining from being lost — and `leave` + `join` repeats it, because the membership ended and a new one began. A *re*-`join` to fix a role does **not**: measured 2026-09-08 before and after one, `last_poll` held at 39 and `joined_at` did not move.
+
+Earlier in that same session two re-joins *did* replay six already-read messages, which is why this file briefly claimed the opposite. The likely cause is the `f594f56` bug — the existing-member branch of `join` rewrote the whole record, `last_poll` included — fixed since, and confirmed by the measurement above. Left written down because two sessions believed the wrong version at once.
+
+Either way, anything polling on a schedule should dedupe on message `id` rather than assume delivery means new: the backlog does come back on `leave` + `join`.
 
 **Tools load at session start.** Registering the MCP server mid-session does not make `join`/`poll`/`send` callable in that session; they appear in the next one.
 
