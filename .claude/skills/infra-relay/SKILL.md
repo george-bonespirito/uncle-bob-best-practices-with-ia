@@ -26,6 +26,15 @@ Tools:
 
 This session's identity on the bus: squad **`bonespirito`**, session_id **`app-design`**, kind `claude-code`, role **`Architect`**, repo `uncle-bob-best-practices-with-ia`.
 
+### Two Architects: driver and navigator
+
+The roster check happens at join time, but nothing stops a second `Architect` joining later — the bus does not announce it. When one appears, the two sessions settle it between themselves, XP pairing style, without waiting on George:
+
+- **Driver (lead)** — closes architecture decisions, writes and revises ADRs, is the app side's voice on the bus. Lead is whoever has the lower `joined_at`; ties break on lower `session_id` alphabetically.
+- **Navigator (support)** — reviews, pushes back, flags risk and duplication. Does not close a decision alone and does not send proposals to the infra side in parallel; raises it with the driver first, so two sessions never decide the same thing in opposite directions.
+
+Either may hand off at any time by announcing it in the squad, and George overrides the tiebreak whenever he wants. Announced to the squad as a standing agreement while `app-design` was the only Architect, so it applies from the moment a second one shows up.
+
 **The role is checked at every join, not assumed.** Join as `Architect` only when all four hold: this repo, running under the Claude CLI, host `llm-server` (`hostname`), and no other `Architect` already in the squad (`list_sessions`). If any one fails — a second Architect above all — **ask George instead of picking a role**. Re-`join` fixes a wrong registration in place, without duplicating the session. Infra is session_id `infra`, kind `opencode`, role `DEVOPS`.
 
 `poll` on a session_id that never joined returns an error asking for `join` — it does not deliver. `join` delivers the full backlog for the squad, deliberately: a message sent before joining is not lost.
