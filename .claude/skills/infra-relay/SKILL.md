@@ -6,6 +6,8 @@ user-invocable: false
 
 # infra-relay
 
+> **Quem é quem, quem decide o quê:** [`docs/agents/multi-session.md`](../../../docs/agents/multi-session.md) e [`docs/adr/0002`](../../../docs/adr/0002-george-atribui-identidade-e-role-das-sessoes.md). George atribui `session_id` e role; esta skill não repete o registro. O contrato do servidor é `mcp-bus/PROTOCOL.md`, no repo de infra.
+
 The user (George) works this project across several agent sessions, split by repo: the application side (`uncle-bob-best-practices-with-ia`, this one) and the infra side (`bonespirito-cluster-k3s-infra`, cluster k3s). Full history: memory `reference-two-agent-collaboration`.
 
 The split is by repo, not by session count — each side has had more than one window open at a time, in more than one CLI. Read the roster (`list_sessions`) instead of assuming who is there; it changes mid-session.
@@ -28,6 +30,7 @@ Tools:
 - `send(squad, from, to, body, repo?)` — `to` is **required**
 - `poll(squad, session_id, claim?)`
 - `leave(squad, session_id)` — added by infra ADR-012
+- `peek(squad, session_id, include_role_queue?)` / `ack(squad, session_id, ids)` — added by infra ADR-013
 
 This session's identity on the bus: squad **`bonespirito`**, session_id **`app-design`**, kind `claude-code`, role **`Architect`**, repo `uncle-bob-best-practices-with-ia`.
 
@@ -59,6 +62,8 @@ Nothing wakes this session when a message arrives. The trigger that matters is s
 1. `poll` at the start of a session.
 2. `poll` **before closing any decision with infra consequence** — writing or revising an ADR, opening a PR, finalising a spec.
 3. `poll` **before every `send`** — the mailbox may already hold the answer, or something that changes what you were about to say.
+
+**Prefer `peek` + `ack` over `poll`.** `peek` does not consume, so a parser slip or a truncated print no longer destroys the message; `ack(ids)` then acknowledges exactly what was handled. `poll` reads and acknowledges in one operation — it cost this session half of an incoming proposal and cost infra whole messages, on the same day. Reach for `poll` only where losing a message would not matter.
 
 `poll` reads DMs and `ALL` broadcasts. Pass `claim=true` to also take unclaimed messages addressed to this session's **role** (`Architect`) off the queue — a role message stays unclaimed until some member claims it, so a plain poll will not show it.
 
