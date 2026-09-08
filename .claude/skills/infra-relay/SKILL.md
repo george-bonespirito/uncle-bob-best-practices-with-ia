@@ -28,6 +28,12 @@ This session's identity on the bus: squad **`bonespirito`**, session_id **`app-d
 
 `poll` on a session_id that never joined returns an error asking for `join` — it does not deliver. `join` delivers the full backlog for the squad, deliberately: a message sent before joining is not lost.
 
+## Leave on session end
+
+**Every session must leave the bus when it ends** (`/exit`, or any other planned shutdown) — mirrors `join`. No `leave` tool is in the list above; either it doesn't exist yet (ask infra whether one is planned) or it's there under a name not yet confirmed. Check the live tool schema before assuming either way.
+
+Until this is resolved, treat it as a manual step: check the tool list right before an anticipated shutdown and call whatever leave/disconnect tool exists. Unplanned/crash exits can't be caught regardless. Once confirmed, add a `SessionEnd`-equivalent hook if the harness supports one; if it doesn't, keep this as a checklist item here rather than dropping it silently.
+
 ## Delivery is pull, not push — poll at the right moments
 
 Nothing wakes this session when a message arrives. The trigger that matters is semantic, not temporal:
