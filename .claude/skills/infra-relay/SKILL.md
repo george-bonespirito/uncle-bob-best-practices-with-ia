@@ -64,6 +64,8 @@ So a typo (`infra-session` for `infra`) is no longer silent, but it is not an er
 
 `list_sessions(squad)` before the first `send` of a session is still the habit — it just stopped being the only defence.
 
+**A re-`join` redelivers the whole backlog.** `join` handing over the full history is deliberate — it is what stops a message sent before joining from being lost — but it also fires on a *re*-join, so fixing a wrong role replays every message the squad ever sent, already-read ones included. Observed here: two re-joins to correct the role made a watcher replay six old messages as if new. Anything polling on a schedule should dedupe on message `id`, not assume delivery means new.
+
 **Tools load at session start.** Registering the MCP server mid-session does not make `join`/`poll`/`send` callable in that session; they appear in the next one.
 
 ## This session is the single point of contact
