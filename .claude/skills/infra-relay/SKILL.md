@@ -19,6 +19,7 @@ Registered in this project at **local scope** (`~/.claude.json`, not in Git — 
 Tools:
 
 - `join(squad, session_id, kind, role?, repo?)`
+- `leave(squad, session_id)`
 - `list_sessions(squad)`
 - `list_squads()`
 - `send(squad, from, to, body, repo?)` — `to` is **required**
@@ -30,9 +31,11 @@ This session's identity on the bus: squad **`bonespirito`**, session_id **`app-d
 
 ## Leave on session end
 
-**Every session must leave the bus when it ends** (`/exit`, or any other planned shutdown) — mirrors `join`. No `leave` tool is in the list above; either it doesn't exist yet (ask infra whether one is planned) or it's there under a name not yet confirmed. Check the live tool schema before assuming either way.
+**Every session must leave the bus when it ends** (`/exit`, or any other planned shutdown) — mirrors `join`. `leave(squad, session_id)` exists (infra shipped it, ADR-012) — call it as the last bus action before a planned shutdown.
 
-Until this is resolved, treat it as a manual step: check the tool list right before an anticipated shutdown and call whatever leave/disconnect tool exists. Unplanned/crash exits can't be caught regardless. Once confirmed, add a `SessionEnd`-equivalent hook if the harness supports one; if it doesn't, keep this as a checklist item here rather than dropping it silently.
+**`leave` + `join` is not a no-op.** A session that rejoins after leaving comes back with `last_poll: -1` and gets the full squad backlog replayed — fine for an end-of-session leave (nothing is lost), but never use the pair as a mid-session "reconnect": it re-delivers everything already read.
+
+Tools only become callable in the session where the MCP server connection was established (see "Tools load at session start" below) — a `leave` that ships mid-session on the infra side will not be callable here until the next session starts. Unplanned/crash exits can't be caught regardless. If the harness gains a `SessionEnd`-equivalent hook, wire `leave` there instead of relying on remembering it at `/exit`.
 
 ## Delivery is pull, not push — poll at the right moments
 
@@ -58,6 +61,10 @@ Rule 2 is the one that earns its keep. In a single session, infra sent three mes
 So a typo (`infra-session` for `infra`) is no longer silent, but it is not an error either — it parks the message for a session that may never exist; the same goes for a Role nobody holds. **Check `delivered_to` on every send**, and treat a non-empty `pending_for` as "this has not arrived". The session list comes back in the same response, so the target can be confirmed without a second call. Infra reads as `infra`.
 
 `list_sessions(squad)` before the first `send` of a session is still the habit — it just stopped being the only defence.
+
+**Infra's session_id is not stable — confirm with `list_sessions` before a targeted `send`, don't assume `infra`.** Confirmed by incident: a `send` to `infra` got `delivered_to: ["infra"]` and looked fine, but that member later vanished from `list_sessions` — it was an orphaned OpenCode session, not the active `infra-claude`. Root cause per infra: `join` on an already-existing session_id overwrites `joined_at`, so routine re-joins can flip which session_id currently answers as `infra`/DEVOPS. Until infra's tie-break fix lands, treat `infra` as a label that can point at a dead member — re-check `list_sessions` right before the send, and if the target already looks stale, resend to whichever DEVOPS session_id is actually listed.
+
+**`delivered_to` on a Role `send` means "someone holds that role," not "it's already visible."** A message to a Role shows up as `delivered_to` for every member holding it, but a plain `poll` (claim=false) still won't return it — the recipient must `poll(claim=true)` to actually pull it off the queue and mark it `claimed_by`. Confirmed by test: sent to `Architect` (my own role, sole holder), got `delivered_to: ["app-design"]` back immediately, then `poll(claim=false)` returned nothing until `poll(claim=true)`.
 
 **Tools load at session start.** Registering the MCP server mid-session does not make `join`/`poll`/`send` callable in that session; they appear in the next one.
 
