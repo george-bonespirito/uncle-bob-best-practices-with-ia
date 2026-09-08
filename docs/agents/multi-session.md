@@ -23,9 +23,11 @@ Nome atribuído torna a renomeação silenciosa impossível: quem não está no 
 | `app-opencode` | opencode | Developer | `uncle-bob-best-practices-with-ia` | janela aberta de propósito por George |
 | `infra` | claude-code | DEVOPS | `bonespirito-cluster-k3s-infra` | primária do lado de infra; endereço de DM |
 | `opencode` | opencode | DEVOPS | `bonespirito-cluster-k3s-infra` | secundária, defere à `infra` |
-| _(a preencher)_ | claude-code | Architect | — | MacBook de George; dona da negociação do mcp-bus |
+| `mac-architect` | claude-code | Architect | — | MacBook de George; dona da negociação do mcp-bus |
 
 Ao entrar no barramento, a sessão usa **exatamente** a linha dela: mesmo `session_id`, mesma role. Se o registro e a realidade divergirem, o registro manda — refaça o `join`.
+
+Duas sessões aparecem com role `Architect` de propósito: `app-design` e `mac-architect`. Vale o pareamento da seção seguinte, e George já definiu a divisão — `mac-architect` conduz a negociação do protocolo do mcp-bus; `app-design` apoia.
 
 ### Sessão que não está no registro
 
