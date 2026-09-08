@@ -24,7 +24,9 @@ Tools:
 - `send(squad, from, to, body, repo?)` — `to` is **required**
 - `poll(squad, session_id, claim?)`
 
-This session's identity on the bus: squad **`bonespirito`**, session_id **`app-design`**, kind `claude-code`, role **`Principal`**, repo `uncle-bob-best-practices-with-ia`. **Under the Claude CLI in this repo the role is always `Principal`** — an earlier session joined as `Architect` and George corrected it; re-`join` with the right role if a session ever registers as anything else. Infra is session_id `infra`, kind `opencode`, role `DEVOPS`.
+This session's identity on the bus: squad **`bonespirito`**, session_id **`app-design`**, kind `claude-code`, role **`Architect`**, repo `uncle-bob-best-practices-with-ia`.
+
+**The role is checked at every join, not assumed.** Join as `Architect` only when all four hold: this repo, running under the Claude CLI, host `llm-server` (`hostname`), and no other `Architect` already in the squad (`list_sessions`). If any one fails — a second Architect above all — **ask George instead of picking a role**. Re-`join` fixes a wrong registration in place, without duplicating the session. Infra is session_id `infra`, kind `opencode`, role `DEVOPS`.
 
 `poll` on a session_id that never joined returns an error asking for `join` — it does not deliver. `join` delivers the full backlog for the squad, deliberately: a message sent before joining is not lost.
 
@@ -36,7 +38,7 @@ Nothing wakes this session when a message arrives. The trigger that matters is s
 2. `poll` **before closing any decision with infra consequence** — writing or revising an ADR, opening a PR, finalising a spec.
 3. `poll` **before every `send`** — the mailbox may already hold the answer, or something that changes what you were about to say.
 
-`poll` reads DMs and `ALL` broadcasts. Pass `claim=true` to also take unclaimed messages addressed to this session's **role** (`Principal`) off the queue — a role message stays unclaimed until some member claims it, so a plain poll will not show it.
+`poll` reads DMs and `ALL` broadcasts. Pass `claim=true` to also take unclaimed messages addressed to this session's **role** (`Architect`) off the queue — a role message stays unclaimed until some member claims it, so a plain poll will not show it.
 
 Rule 2 is the one that earns its keep. In a single session, infra sent three messages, two of them mid-conversation; a start-of-session poll alone would have missed both. Never close an infra-consequential decision without having read the mailbox first.
 
