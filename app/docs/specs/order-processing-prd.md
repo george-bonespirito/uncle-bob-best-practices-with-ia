@@ -66,9 +66,9 @@ Para não deixar estoque ou crédito reservados num pedido cancelado.
 
 | # | Criterion | Status |
 |---|---|---|
-| 1 | Acceptance criteria definidos (Gherkin) | ✅ `bulk_import.feature`, `concurrent_processing_steps.feature`, `status_change_notification.feature`, `compensating_flow.feature`, `awaiting_master_data.feature` |
+| 1 | Acceptance criteria definidos (Gherkin) | ✅ `bulk_import.feature`, `concurrent_processing_steps.feature`, `status_change_notification.feature`, `compensating_flow.feature`, `awaiting_master_data.feature`, `partial_fulfillment.feature` |
 | 2 | Dependências identificadas | ✅ Postgres (schema via **Flyway**), Kafka, Debezium, Conductor OSS (`conductor-oss/conductor`), Apicurio, OpenTelemetry, Meta Cloud API |
-| 3 | Abordagem técnica validada | ✅ via sessão de grilling — ADRs raiz 0001/0002/0008, order 0001/0002/0003/0011, notifications 0001/0003 |
+| 3 | Abordagem técnica validada | ✅ via sessão de grilling — ADRs raiz 0001/0002/0008, order 0001/0002/0003/0011/0012, notifications 0001/0003 |
 | 4 | Cabe na arquitetura atual | N/A — é greenfield, arquitetura sendo definida por este PRD |
 | 5 | Expectativas de performance/segurança documentadas | ⚠️ Não aprofundado — projeto de aprendizado, não produção |
 
@@ -135,6 +135,8 @@ flowchart LR
 
     User -->|"upload planilha"| Order
     Notifications -->|"busca WhatsApp Phone (REST)"| Customers
+    Route -->|"busca Physical Attributes (REST)"| Products
+    Invoice -->|"reconfere Product Status (REST)"| Products
     Order -->|"dispara workflow"| Orkes
     Orkes <-.->|"worker-polling"| Customers
     Orkes <-.->|"worker-polling"| Products
@@ -162,7 +164,7 @@ flowchart LR
 
 ### C4 — Level 3: Component (MS Order)
 
-Diagrama editável: [`app/docs/diagrams/c4-l3-order-components.drawio.svg`](../diagrams/c4-l3-order-components.drawio.svg). Só MS Order tem L3 — é o único container com detalhe suficiente resolvido; os outros 8 MS ainda não têm nem `CONTEXT.md` (gray area #5), então um L3 deles seria invenção, não design. Consistente com `rules/docs.md`: "C4 Level 3 gerado sob demanda quando a complexidade justifica."
+Diagrama editável: [`app/docs/diagrams/c4-l3-order-components.drawio.svg`](../diagrams/c4-l3-order-components.drawio.svg). Só MS Order tem L3 — é o único container com detalhe suficiente resolvido; dos outros 8 MS, só Customers e Products têm `CONTEXT.md` (gray area #5) e nenhum tem detalhe interno resolvido, então um L3 deles seria invenção, não design. Consistente com `rules/docs.md`: "C4 Level 3 gerado sob demanda quando a complexidade justifica."
 
 Decidido (verde): Bulk Import Handler, `Order`/`OrderItem` (JPA, aggregate root), Repository, os 7 consumers Kafka, `order_update_event` (staging), worker pool `SKIP LOCKED`, apply com optimistic locking, Debezium connector, DLT Publisher. Indefinido (cinza pontilhado): contrato REST do endpoint de import (path/shape — nunca especificado), contract test de schema Avro em CI (gray area #12), classificador transitória-vs-permanente (o conceito está na ADR raiz 0005, os tipos de exceção específicos não).
 
@@ -195,8 +197,9 @@ Order é aggregate root; `order_items` é tabela filha (N produtos por pedido �
 | `id` | import | — (PK) |
 | `order_id` | import | — (FK, não é aggregate próprio — ver termo Order Item no CONTEXT.md) |
 | `sku`, `quantity` | import | — |
-| `product_snapshot` (`@Embedded`: nome, categoria) | Data Enrichment (Products) | sim |
+| `product_snapshot` (`@Embedded`: name, categoria) | Data Enrichment (Products) | sim |
 | `unit_price`, `currency` | Data Enrichment (Pricing) | sim |
+| `fulfillment_status` (`FULFILLED`/`NOT_FULFILLED`), `not_fulfilled_reason` | Data Enrichment (Products) | sim — só decidido quando a Product Enrichment roda; ver [ADR order/0012](../../order/docs/adr/0012-partial-fulfillment-for-inactive-products.md) |
 
 **`import_batches`** (ADR order/0004 — existe antes de qualquer `Order`, por isso não é campo em `orders`)
 
@@ -287,6 +290,7 @@ sequenceDiagram
 
 - **Glossário do domínio Order:** [`app/order/CONTEXT.md`](../../order/CONTEXT.md)
 - **Glossário do domínio Customers:** [`app/customers/CONTEXT.md`](../../customers/CONTEXT.md)
+- **Glossário do domínio Products:** [`app/products/CONTEXT.md`](../../products/CONTEXT.md)
 - **Mapa de contextos (9 MS):** [`app/CONTEXT-MAP.md`](../../CONTEXT-MAP.md)
 - **ADR raiz 0001** — worker-polling entre Orkes e os 7 MS de dado, em vez de HTTP push: [`app/docs/adr/0001-worker-polling-for-processing-steps.md`](../adr/0001-worker-polling-for-processing-steps.md)
 - **ADR raiz 0002** — fluxo compensatório (Saga): quais steps compensam, ordem do workflow, estado `COMPENSATION_FAILED`: [`app/docs/adr/0002-compensating-flow-for-order-processing.md`](../adr/0002-compensating-flow-for-order-processing.md)
@@ -298,6 +302,7 @@ sequenceDiagram
 - **ADR raiz 0007** — Codeberg Container Registry (verificado, real) + Woodpecker CI com runner compartilhado, revisada em 2026-08-30 (registry self-hosted + agente self-hosted revertidos): [`app/docs/adr/0007-image-registry-and-ci-topology.md`](../adr/0007-image-registry-and-ci-topology.md)
 - **ADR 0008 (Order)** — pipeline completo commit→deploy: Woodpecker builda, publica (tag=SHA); `imagePullSecret` via ESO+Vault pro pull (registry exige auth mesmo em repo público, verificado). **Quem faz o bump do manifesto no repo de infra é pendente** — decisão do `claude-infra`, não fechada (gray area #19): [`app/order/docs/adr/0008-full-cicd-pipeline-commit-to-deploy.md`](../../order/docs/adr/0008-full-cicd-pipeline-commit-to-deploy.md). Diagrama de sequência (quem fala com quem): [`app/docs/diagrams/cicd-pipeline-sequence.drawio.svg`](../diagrams/cicd-pipeline-sequence.drawio.svg). Flowchart do processo, com pontos de falha (gate reprovado, pull falho): [`app/docs/diagrams/cicd-pipeline-flow.drawio.svg`](../diagrams/cicd-pipeline-flow.drawio.svg)
 - **Integration Spec** — schema completo dos 7 tópicos de resultado, envelope, retry/idempotência: [`app/docs/specs/processing-steps-kafka-integration.md`](processing-steps-kafka-integration.md)
+- **ADR 0012 (Order)** — atendimento parcial: item com produto `INACTIVE` não é atendido e o Order segue com os demais; Product Status reconferido na Invoice Generation: [`app/order/docs/adr/0012-partial-fulfillment-for-inactive-products.md`](../../order/docs/adr/0012-partial-fulfillment-for-inactive-products.md)
 - **ADR 0001 (Order)** — optimistic locking (version) substitui Redis lock para concorrência entre Processing Steps: [`app/order/docs/adr/0001-optimistic-locking-for-order-writes.md`](../../order/docs/adr/0001-optimistic-locking-for-order-writes.md)
 - **ADR 0002 (Order)** — Debezium (WAL) em vez de outbox pattern para CDC do Order: [`app/order/docs/adr/0002-debezium-for-order-cdc.md`](../../order/docs/adr/0002-debezium-for-order-cdc.md)
 - **ADR 0003 (Order)** — Kafka (tópico não particionado por order_id) + staging + SKIP LOCKED para aplicar resultado das Processing Steps: [`app/order/docs/adr/0003-kafka-staging-skip-locked-for-processing-results.md`](../../order/docs/adr/0003-kafka-staging-skip-locked-for-processing-results.md)
@@ -334,7 +339,7 @@ Aplicados a cada MS conforme for implementado, começando por MS Order — mapea
 | Mutation testing | Pitest, alvo `domain.policy.*` (`OrderStatusTransition`, `CompensationPolicy`, duplicata de import — conflito de version fica de fora, é comportamento JPA), threshold 80% — ADR order/0005 | `./gradlew pitest` (separado, mais caro) |
 | Architecture checker | ArchUnit — camadas controller/application/domain/infra; regra específica: `domain.policy..` não depende de Spring/JPA (não é `domain` inteiro) — ADR order/0006 | `./gradlew check` |
 | MockK | Testes de `application`, substitui Mockito | `./gradlew check` |
-| Gherkin | Cucumber-JVM — `bulk_import.feature`, `concurrent_processing_steps.feature`, `status_change_notification.feature`, `compensating_flow.feature` | `./gradlew check` |
+| Gherkin | Cucumber-JVM — `bulk_import.feature`, `concurrent_processing_steps.feature`, `status_change_notification.feature`, `compensating_flow.feature`, `awaiting_master_data.feature`, `partial_fulfillment.feature` | `./gradlew check` |
 | QA procedure / E2E | Playwright contra HTTP real | `docker compose run --rm e2e pnpm test:e2e` (separado) |
 
 ### Key technical constraints
@@ -353,7 +358,7 @@ Aplicados a cada MS conforme for implementado, começando por MS Order — mapea
 | Database-per-service + Debezium por serviço = 9x a infra de CDC se todos publicarem CDC | Complexidade operacional alta | Só MS Order tem CDC/Debezium confirmado neste PRD; os demais MS decidem sob demanda quando forem implementados |
 | `COMPENSATION_FAILED` não tem caminho de resolução automatizado | Order fica travado exigindo intervenção manual, sem ferramenta de ops desenhada para isso | Fora de escopo deste projeto de aprendizado; se algum dia for produção real, desenhar um painel/processo de retomada manual antes |
 | Planilha com muitas linhas de `customer_id`/`sku` inexistentes gera muitos Orders em `AWAITING_MASTER_DATA`, cada um exigindo cadastro e reexecução manual | Fila de trabalho manual de ops pode crescer sem controle; nenhum pedido é perdido, mas nenhum anda | `AWAITING_MASTER_DATA` é status próprio na tabela `orders`, então a fila é consultável. Retomada automática (evento de cadastro destravando workflows) foi rejeitada e continua em aberto — ver [ADR order/0011](../../order/docs/adr/0011-async-only-enrichment-await-master-data.md) |
-| MS Notifications depende do MS Customers em runtime para obter o WhatsApp Phone | Customers fora do ar impede envio de notificação | Retry curto e DLT; é o único acoplamento síncrono do sistema, e não envolve o MS Order |
+| MS Notifications depende do MS Customers em runtime para obter o WhatsApp Phone | Customers fora do ar impede envio de notificação | Retry curto e DLT. Não é mais o único acoplamento síncrono: o Products Lookup atende Route (Physical Attributes) e Invoice Generation (reconferência de Product Status, [ADR order/0012](../../order/docs/adr/0012-partial-fulfillment-for-inactive-products.md)). Nenhum deles envolve o MS Order, que segue sem consulta síncrona a MS de dado |
 | Postgres do cluster acumula três responsabilidades (dados de aplicação, slot de CDC e — se o Conductor entrar — estado de workflow), num disco só e sem réplica | Falha do Postgres para o sistema inteiro, não um serviço | Conhecido e aceito no escopo de aprendizado; a decisão de pôr o Conductor no mesmo Postgres é da sessão de infra e merece ADR de lá. O backup diário (ADR-007 do repo de infra) precisa passar a cobrir o banco `ms_order`, hoje só cobre `apicurio` |
 | Restore de backup perde os eventos ainda não aplicados em `order_update_event` | A staging sai do dump com `--exclude-table-data` (decisão de backup da infra, a nosso pedido — só a DDL é preservada, o restore recria a tabela vazia). Após um restore, os Orders voltam ao estado do backup, mas resultados de Processing Step já publicados e ainda não aplicados desaparecem; o Conductor ficaria com workflows esperando resultado que não volta | Aceito no escopo de aprendizado. A recuperação seria reexecutar as tasks afetadas no Conductor, o mesmo caminho manual de `AWAITING_MASTER_DATA`. Preservar a staging no backup não resolveria sozinho — restaurar eventos cujo Order voltou no tempo reintroduz o problema por outro lado |
 | `database-per-service` não é garantido pelo Postgres por default | O PostgreSQL concede `CONNECT` a `PUBLIC` em todo banco: role próprio não implica isolamento, e um serviço poderia ler o banco de outro sem erro | Corrigido pela sessão de infra com `REVOKE`, verificado nos dois sentidos (commit `eb794d7`). Vale como precedente: cada banco novo precisa do `REVOKE` explícito, senão a premissa deste PRD não vale |
@@ -435,17 +440,18 @@ Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 pa
 
 **Bloqueantes pra implementar MS Order:**
 1. ✅ Schema das mensagens Kafka — Avro + Apicurio Registry, 7 tópicos (1 por task do Conductor), envelope comum definido — ADR raiz 0003/0004, `processing-steps-kafka-integration.md`.
-2. ✅ Colunas reais de `orders` e `order_items` (tabela filha, N itens por pedido) — seção "Modelo de dados" acima; snapshots como `@Embedded`, não JSONB; `version` único cobre o agregado inteiro (nota de escopo na ADR order/0001).
+2. ✅ Colunas reais de `orders` e `order_items` (tabela filha, N itens por pedido; `fulfillment_status`/`not_fulfilled_reason` acrescentadas pela ADR order/0012) — seção "Modelo de dados" acima; snapshots como `@Embedded`, não JSONB; `version` único cobre o agregado inteiro (nota de escopo na ADR order/0001).
 3. ✅ Retry/timeout do worker-polling — 3 tentativas, backoff exponencial (1s/5s/15s) — `processing-steps-kafka-integration.md`, seção Resilience.
 4. ✅ Idempotência da ação compensatória — `resultId` (aplicação ao Order) + `creditHoldId`/`stockReservationId` (compensação em si) — mesma seção.
 
 **Bloqueantes pros outros 8 MS:**
-5. 🟡 `CONTEXT.md` por MS de dado — [Customers resolvido](../../customers/CONTEXT.md): identidade `customer_id` sem conversão, `Document` como VO com `Customer Type` derivado, `Delivery Address` com default obrigatório, cadastro sem status, `Customer Not Found` como única falha de negócio. Trouxe junto o Customers Lookup síncrono, hoje com consumidor único ([`customers-api-contract.md`](./customers-api-contract.md)), e termos novos no contexto Order (`Import Fingerprint`, `Rejected Order Row`, `Data Enrichment`). Faltam Products, Pricing, Stock, Contabil, Invoice, Route, Notifications — **Products é o próximo**, com 4 perguntas já levantadas (granularidade do SKU, atributos físicos para Route, divergência `nome` vs `descrição` entre PRD e spec Kafka, existência de `Product Status`).
+5. 🟡 `CONTEXT.md` por MS de dado — [Customers resolvido](../../customers/CONTEXT.md): identidade `customer_id` sem conversão, `Document` como VO com `Customer Type` derivado, `Delivery Address` com default obrigatório, cadastro sem status, `Customer Not Found` como única falha de negócio. Trouxe junto o Customers Lookup síncrono, hoje com consumidor único ([`customers-api-contract.md`](./customers-api-contract.md)), e termos novos no contexto Order (`Import Fingerprint`, `Rejected Order Row`, `Data Enrichment`). [Products resolvido](../../products/CONTEXT.md): SKU é a identidade de um produto vendável **sem hierarquia** produto-pai/variante; `Name` (curto, vai pro Snapshot) e `Description` (longo, fica no contexto) são campos distintos — a divergência `nome` vs `descrição` entre PRD e spec Kafka era erro e foi corrigida nos dois; Physical Attributes (peso e dimensões) são obrigatórios e pertencem ao Products, consumidos pelo Route via lookup síncrono; e **`Product Status` existe** (`ACTIVE`/`INACTIVE`), ao contrário do Customers. O status trouxe consequência grande pro Order: item com produto `INACTIVE` **não é atendido** e o pedido segue com os demais — atendimento parcial, que o desenho não tinha ([ADR order/0012](../../order/docs/adr/0012-partial-fulfillment-for-inactive-products.md)), com reverificação do status na Invoice Generation porque a regra é "até faturar, o pedido ainda pode mudar". Faltam Pricing, Stock, Contabil, Invoice, Route, Notifications — **Pricing é o próximo**, natural por fechar o trio da Data Enrichment.
 
 **Em aberto, não bloqueante agora:**
 6. ✅ Provedor WhatsApp — Meta Cloud API direto, envio via template pré-aprovado (exigência da Meta, não específica de provedor) — ADR notifications/0002.
 7. ✅ Volume: até ~50.000 linhas/arquivo, planilha denormalizada (cabeçalho repetido por item) — ADR order/0004.
 8. ⬜ `COMPENSATION_FAILED` sem caminho de resolução automatizado (aceito como fora de escopo).
+8b. ⬜ Consequências abertas do atendimento parcial (ADR order/0012): notificação ao cliente de item não atendido (Notifications só dispara em mudança de status do Order, e item não atendido não muda status); compensação parcial (o fluxo da ADR raiz 0002 só sabe reverter Order inteiro); e por qual caminho o Order vai a `CANCELLED` quando **todos** os itens são `INACTIVE`.
 9. ✅ K3s — cluster real, Postgres/Kafka/Apicurio já rodando via ArgoCD; dev/test loop mira o cluster; deploy de produção via ArgoCD; WhatsApp sem exposição pública — ADR raiz 0006. Orkes no cluster ainda não existe (ação de infra, não gap de design).
 10. ⬜ Teste de integração da Saga ponta a ponta (além do Gherkin de aceitação) — não desenhado.
 11. ✅ Dead letter — tópico `.dlt` por tópico de resultado, retry curto pra falha transitória, direto ao DLT pra falha permanente, resolução manual — ADR raiz 0005.

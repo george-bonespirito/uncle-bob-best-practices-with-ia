@@ -40,3 +40,13 @@ Consequência boa: nenhum microsserviço de dado fora do ar afeta o import. Ante
 **Retomada automática foi rejeitada.** Fazer o cadastro publicar `CustomerRegistered`/`ProductRegistered` e um consumidor casar isso com workflows travados exigiria eventos de ciclo de vida, que o [`CONTEXT.md` do Customers](../../../customers/CONTEXT.md) rejeita explicitamente por não terem consumidor. Automatizar depois é uma mudança grande, não um ajuste — mas o caminho manual não impede.
 
 Status: accepted
+
+---
+
+## Revisão — 2026-09-08
+
+O motivo pelo qual eventos de ciclo de vida foram rejeitados era **não haver consumidor**. Passou a haver um: com [Product Status](../../../products/CONTEXT.md) no cadastro de produtos, um pedido em voo precisa saber se o produto foi desativado depois do enriquecimento.
+
+**A decisão não muda.** Um consumidor não justifica tópico, consumidor e ordenação enquanto uma consulta síncrona no último ponto antes do faturamento resolve — ver [ADR 0012](0012-partial-fulfillment-for-inactive-products.md). O que muda é a justificativa: "não há consumidor" deixou de ser verdade, e a razão agora é custo desproporcional, não ausência de demanda.
+
+Se um segundo consumidor aparecer — retomada automática de `AWAITING_MASTER_DATA` é o candidato óbvio —, a conta muda e esta ADR deve ser revisitada de verdade.

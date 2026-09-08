@@ -17,7 +17,7 @@ Cada um dos 7 MS de dado, ao concluir sua task no workflow do Orkes (via worker-
 | Tópico | Producer | Payload (Avro, além do envelope comum) |
 |---|---|---|
 | `order.customer-enrichment.result` | MS Customers | `customerSnapshot` (`name` legal, `document`, endereço de entrega padrão) — sem contato: WhatsApp Phone é consultado em runtime, ver [`customers-api-contract.md`](./customers-api-contract.md) |
-| `order.product-enrichment.result` | MS Products | `productSnapshots[]` (sku, descrição, categoria por item do pedido) |
+| `order.product-enrichment.result` | MS Products | `productSnapshots[]` (sku, name, categoria e Product Status por item do pedido) |
 | `order.pricing.result` | MS Pricing | `unitPrices[]` (sku, valor unitário, moeda) |
 | `order.credit-validation.result` | MS Contabil | `creditStatus` (APPROVED/REJECTED), `creditHoldId` (nullable, presente só se APPROVED) |
 | `order.stock-validation.result` | MS Stock | `stockReservationId` (nullable, presente só se sucesso), `reservedItems[]` |

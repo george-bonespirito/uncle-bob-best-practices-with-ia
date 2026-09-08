@@ -31,3 +31,5 @@ Feature: Fluxo compensatório quando uma Processing Step falha
     When o Orkes avalia o workflow
     Then a etapa "Invoice Generation" é disparada
     And o Order muda para "INVOICING"
+    # As 4 etapas são condição necessária, não suficiente: a Invoice Generation
+    # ainda reconfere o Product Status antes de emitir — ver partial_fulfillment.feature
