@@ -6,7 +6,7 @@ user-invocable: false
 
 # infra-relay
 
-> **Quem é quem, quem decide o quê:** [`docs/agents/multi-session.md`](../../../docs/agents/multi-session.md) e [`docs/adr/0002`](../../../docs/adr/0002-george-atribui-identidade-e-role-das-sessoes.md). George atribui `session_id` e role; esta skill não repete o registro. O contrato do servidor é `mcp-bus/PROTOCOL.md`, no repo de infra.
+> **Quem é quem, quem decide o quê:** [`docs/agents/multi-session.md`](../../../docs/agents/multi-session.md) e [`docs/adr/0002`](../../../docs/adr/0002-george-atribui-identidade-e-role-das-sessoes.md). George atribui `session_id` e role; esta skill não repete o registro. O contrato do servidor é `mcp-bus/PROTOCOL.md`, no repo de infra — **hoje um rascunho em revisão, não fonte fechada**: o que está publicado lá ainda não passou pela aprovação da driver, e afirmações desta skill que o contradigam foram verificadas contra o servidor. Quando a versão revisada entrar, esta ressalva sai.
 
 The user (George) works this project across several agent sessions, split by repo: the application side (`uncle-bob-best-practices-with-ia`, this one) and the infra side (`bonespirito-cluster-k3s-infra`, cluster k3s). Full history: memory `reference-two-agent-collaboration`.
 
