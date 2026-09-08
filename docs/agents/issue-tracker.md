@@ -2,7 +2,9 @@
 
 Issues for this repo live as **Codeberg Issues (Forgejo)** on `torgge/uncle-bob-best-practices-with-ia` — not GitHub, not GitLab.
 
-**The repo is private.** There is no anonymous read: an unauthenticated API call returns `404`, the same as for a repo that doesn't exist. Every tracker operation — including merely listing issues — needs a credential. This is the real prerequisite; the tool used to carry it is secondary.
+**The repo is public: reads need no credential, writes do.** An unauthenticated `GET` on issues or pulls returns `200`; an unauthenticated `POST` returns `401`. So listing issues, reading one with its comments, and checking for duplicates all work with a bare `curl` — only creating, commenting, labelling, assigning and closing need the token.
+
+This reverses what this file said until 2026-09-08, which was that the repo was private and every operation, reading included, needed a credential. Verified against the API that day, without a token: both this repo and `bonespirito-cluster-k3s-infra` report `private=False`.
 
 ## Transport: the Forgejo REST API
 
@@ -10,7 +12,7 @@ Issues for this repo live as **Codeberg Issues (Forgejo)** on `torgge/uncle-bob-
 
 Auth: `Authorization: token <TOKEN>`, scope `write:repository`. On George's workstation the token is in `CODEBERG_ACCESS_TOKEN`.
 
-If a session has no token, it **reads the tracker via the Codeberg web UI and asks the user to perform writes** — it does not skip the check-before-create rule (see below) on the grounds that the tracker was inconvenient to reach.
+If a session has no token, it **still reads the tracker over the API** — anonymous `GET` works — and asks the user to perform writes. Never skip the check-before-create rule on the grounds that the tracker was inconvenient to reach: with anonymous read, the check itself never needs a credential.
 
 ### Operation reference
 
