@@ -31,6 +31,7 @@ Tools:
 - `poll(squad, session_id, claim?)`
 - `leave(squad, session_id)` — added by infra ADR-012
 - `peek(squad, session_id, include_role_queue?)` / `ack(squad, session_id, ids)` — added by infra ADR-013
+- `claim(squad, session_id, ids)` — added by infra ADR-016
 
 This session's identity on the bus: squad **`bonespirito`**, session_id **`app-design`**, kind `claude-code`, role **`Architect`**, repo `uncle-bob-best-practices-with-ia`.
 
@@ -75,7 +76,9 @@ Nothing wakes this session when a message arrives. The trigger that matters is s
 
 **Prefer `peek` + `ack` over `poll`.** `peek` does not consume, so a parser slip or a truncated print no longer destroys the message; `ack(ids)` then acknowledges exactly what was handled. `poll` reads and acknowledges in one operation — it cost this session half of an incoming proposal and cost infra whole messages, on the same day. Reach for `poll` only where losing a message would not matter.
 
-`poll` reads DMs and `ALL` broadcasts. Pass `claim=true` to also take unclaimed messages addressed to this session's **role** (`Architect`) off the queue — a role message stays unclaimed until some member claims it, so a plain poll will not show it.
+`poll` reads DMs and `ALL` broadcasts. Pass `claim=true` to also take unclaimed messages addressed to this session's **role** (`Architect`) off the queue — a role message stays unclaimed until some member claims it, so a plain read will not show it.
+
+**Reserve role work before doing it, not after.** `peek` shows an unclaimed role message to *every* holder of that role, and `ack` only registers ownership once the work is done — so two sessions can process the same item and find out afterwards. `claim(ids)` takes it first: a second session trying the same id gets `already claimed`. Reaching for it is optional and only matters when more than one session holds the role, which is exactly when forgetting it hurts. There is no TTL by design — an item held by a session that died stays held until a `leave` releases it, because a stuck item gets noticed and an item that silently returns gets done twice.
 
 Rule 2 is the one that earns its keep. In a single session, infra sent three messages, two of them mid-conversation; a start-of-session poll alone would have missed both. Never close an infra-consequential decision without having read the mailbox first.
 
