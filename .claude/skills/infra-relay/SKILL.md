@@ -6,11 +6,15 @@ user-invocable: false
 
 # infra-relay
 
-The user (George) works this project across two agent sessions: this one (application design, `uncle-bob-best-practices-with-ia`) and a separate infra session (`bonespirito-cluster-k3s-infra`, cluster k3s). Full history: memory `reference-two-agent-collaboration`.
+The user (George) works this project across several agent sessions, split by repo: the application side (`uncle-bob-best-practices-with-ia`, this one) and the infra side (`bonespirito-cluster-k3s-infra`, cluster k3s). Full history: memory `reference-two-agent-collaboration`.
+
+The split is by repo, not by session count — each side has had more than one window open at a time, in more than one CLI. Read the roster (`list_sessions`) instead of assuming who is there; it changes mid-session.
 
 ## Transport: the mcp-bus barramento
 
-The two sessions talk over **mcp-bus** — an MCP server (Streamable HTTP) at `https://mcp.lab.bonespirito.com/mcp`, auth by `Authorization: Bearer <token>`. It exists because `SendMessage`/`ListAgents` is Claude Code-only, and the infra session moved to OpenCode: the old channel stopped existing on that end.
+The two sides talk over **mcp-bus** — an MCP server (Streamable HTTP) at `https://mcp.lab.bonespirito.com/mcp`, auth by `Authorization: Bearer <token>`. It exists because `SendMessage`/`ListAgents` is Claude Code-only and the infra side is not always on Claude Code — when it ran under OpenCode, that channel stopped existing on its end.
+
+**Which CLI is on the other side changes; do not hard-code it.** The infra side has run under OpenCode and under Claude Code, sometimes both at once in different windows. When a Claude Code infra session is up, `SendMessage` works again as a second channel alongside the bus — `ListAgents` shows whether one is live right now. The bus is the channel that works either way, which is why it stays the primary one.
 
 Registered in this project at **local scope** (`~/.claude.json`, not in Git — the repo is public). Token lives at `~/.config/mcp-bus/token` (mode 600) and in Vault at `secret/bonespirito/mcp-bus`. Never commit it, never put it in `.mcp.json`.
 
@@ -23,6 +27,7 @@ Tools:
 - `list_squads()`
 - `send(squad, from, to, body, repo?)` — `to` is **required**
 - `poll(squad, session_id, claim?)`
+- `leave(squad, session_id)` — added by infra ADR-012
 
 This session's identity on the bus: squad **`bonespirito`**, session_id **`app-design`**, kind `claude-code`, role **`Architect`**, repo `uncle-bob-best-practices-with-ia`.
 
@@ -35,7 +40,15 @@ The roster check happens at join time, but nothing stops a second `Architect` jo
 
 Either may hand off at any time by announcing it in the squad, and George overrides the tiebreak whenever he wants. Announced to the squad as a standing agreement while `app-design` was the only Architect, so it applies from the moment a second one shows up.
 
-**The role is checked at every join, not assumed.** Join as `Architect` only when all four hold: this repo, running under the Claude CLI, host `llm-server` (`hostname`), and no other `Architect` already in the squad (`list_sessions`). If any one fails — a second Architect above all — **ask George instead of picking a role**. Re-`join` fixes a wrong registration in place, without duplicating the session. Infra is session_id `infra`, kind `opencode`, role `DEVOPS`.
+**The role is checked at every join, not assumed.** Join as `Architect` only when all four hold: this repo, running under the Claude CLI, host `llm-server` (`hostname`), and no other `Architect` already in the squad (`list_sessions`). If any one fails — a second Architect above all — **ask George instead of picking a role**. Re-`join` fixes a wrong registration in place, without duplicating the session.
+
+### Who is on the other side
+
+Address the infra side as session_id **`infra`** — DM confirmed working there. Do not assume its CLI: `infra` has been an OpenCode window and is currently Claude Code. A second infra window, `opencode`, has declared itself secondary and defers to `infra`.
+
+`app-opencode` (OpenCode, role `Developer`) sits on the **application** repo, this session's own territory. Not an `Architect`, so the driver/navigator rule above does not fire for it — but check with it before closing a decision that touches code it may be writing.
+
+None of this is stable. Sessions join, `leave` and re-join under different names and roles mid-conversation; the orphaned `infra` join that nobody read is what motivated `leave()` in the first place. **Read `list_sessions` at the moment you need it** rather than trusting the names written here.
 
 `poll` on a session_id that never joined returns an error asking for `join` — it does not deliver. `join` delivers the full backlog for the squad, deliberately: a message sent before joining is not lost.
 
