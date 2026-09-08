@@ -79,7 +79,9 @@ So a typo (`infra-session` for `infra`) is no longer silent, but it is not an er
 
 **`leave` + `join` redelivers the whole backlog; a plain re-`join` does not.** A first `join` handing over the full history is deliberate — it is what stops a message sent before joining from being lost — and `leave` + `join` repeats it, because the membership ended and a new one began. A *re*-`join` to fix a role does **not**: measured 2026-09-08 before and after one, `last_poll` held at 39 and `joined_at` did not move.
 
-Earlier in that same session two re-joins *did* replay six already-read messages, which is why this file briefly claimed the opposite. The likely cause is the `f594f56` bug — the existing-member branch of `join` rewrote the whole record, `last_poll` included — fixed since, and confirmed by the measurement above. Left written down because two sessions believed the wrong version at once.
+**Changing role does not redeliver either.** Infra reproduced it on a throwaway session: join as one role, poll, join again as another, peek — cursor held, nothing replayed. Member lookup is `squad + session_id`; role is not part of the key.
+
+Earlier in that same session two re-joins *did* replay six already-read messages, which is why this file briefly claimed the opposite. Both explanations offered since have been checked and dropped — the `f594f56` bug (that branch never touched `last_poll`), the role queue (none of the six were role-addressed), and first-entry backlog (ids 0 and 1 reached this session *twice*, which one first entry cannot explain). **Still open.** The live hypothesis is that the member record for `app-design` was lost and recreated — a database or volume swap would do it, and the bus moved in-cluster that day. Written down unresolved on purpose: three plausible causes have already been believed and abandoned here.
 
 Either way, anything polling on a schedule should dedupe on message `id` rather than assume delivery means new: the backlog does come back on `leave` + `join`.
 
