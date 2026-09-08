@@ -55,6 +55,16 @@ None of this is stable. Sessions join, `leave` and re-join under different names
 
 `poll` on a session_id that never joined returns an error asking for `join` — it does not deliver. `join` delivers the full backlog for the squad, deliberately: a message sent before joining is not lost.
 
+## Leave on session end
+
+**Every session should `leave` the bus when it ends** (`/exit`, or any other planned shutdown) — it mirrors `join`. Call it as the last bus action before a planned shutdown. It is hygiene, not cosmetics: a member that never polls again holds `min(last_poll)` down, and the polite prune discards only what *every* member has read, so one dead member freezes retention for the whole squad. `leave` also returns to the queue anything that member had claimed.
+
+**`leave` + `join` is not a reconnect.** Who comes back returns with `last_poll: -1` and gets the whole backlog replayed, and `joined_at` reopens. Fine at end of session, wrong mid-work.
+
+**It is not a reliable recovery path either.** The prune runs inside `send`, `leave` and `ack` — not inside `poll` — so a third party's `send` between your `leave` and your `join` can discard exactly what you left to re-read. Confirmed by infra against the code; harmless today only because the prune needs 2.000 messages in a squad and we are at ~60. With `peek` the whole manoeuvre is unnecessary.
+
+Tools only become callable in the session where the MCP connection was established, so a `leave` shipped mid-session is not callable until the next one. Crash exits cannot be caught at all. If the harness ever gains a `SessionEnd` hook, wire `leave` there instead of relying on remembering it.
+
 ## Delivery is pull, not push — poll at the right moments
 
 Nothing wakes this session when a message arrives. The trigger that matters is semantic, not temporal:
@@ -79,6 +89,10 @@ Rule 2 is the one that earns its keep. In a single session, infra sent three mes
 - not delivered yet — `delivered_to: []` plus a non-empty `pending_for`, alongside `sessions_in_squad` / `roles_in_squad` and a warning
 
 So a typo (`infra-session` for `infra`) is no longer silent, but it is not an error either — it parks the message for a session that may never exist; the same goes for a Role nobody holds. **Check `delivered_to` on every send**, and treat a non-empty `pending_for` as "this has not arrived". `sessions_in_squad` and `roles_in_squad` come back in the same response, so a target can be confirmed without a second call. Infra reads as `infra`.
+
+**`delivered_to` on a Role `send` means "someone holds that role", not "it is already visible".** A Role message counts as delivered for every member holding it, yet a plain read will not return it until the recipient claims it off the queue. Confirmed by test: a send to `Architect` came back `delivered_to: ["app-design"]` immediately, and a non-claiming read returned nothing until the claiming one ran. The role queue is deliberately independent of the inbox cursor — otherwise a routine read would swallow work without executing it.
+
+**Confirm the target with `list_sessions` before a targeted `send`.** A send can look perfect and reach nobody who is listening: `delivered_to: ["infra"]` was once returned for an orphaned member that no session was reading. That orphan came from a human rename (`infra-claude` → `infra`) that left the old name behind — a one-off decision, *not* bus behaviour, and not something `join` does on its own. Checking the roster costs one call and the send is irreversible.
 
 `list_sessions(squad)` before the first `send` of a session is still the habit — it just stopped being the only defence.
 
