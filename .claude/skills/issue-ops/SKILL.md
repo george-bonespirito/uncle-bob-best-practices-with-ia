@@ -18,13 +18,13 @@ Search by a distinctive fragment of the title (and for a map, by the `wayfinder:
 
 ## Reaching the tracker
 
-The repo is **private**, so there is no anonymous read — every operation needs a credential. There is one transport: the **Forgejo REST API** (`Authorization: token <TOKEN>`, scope `write:repository`; on George's workstation the token is in `CODEBERG_ACCESS_TOKEN`).
+The repo is **public**: reading needs no credential, writing does. One transport either way — the **Forgejo REST API**. Anonymous `GET` on issues and pulls returns `200`, so the check-before-create search above always works; writes send `Authorization: token <TOKEN>` (scope `write:repository`; on George's workstation the token is in `CODEBERG_ACCESS_TOKEN`) and return `401` without it.
 
 **The `tea` CLI is no longer used in this project.** It is not a fallback and not an alternative — don't reach for it, and don't reinstate it in docs.
 
 `docs/agents/issue-tracker.md` has the operation-by-operation mapping.
 
-**If the session has no token**, say so and ask the user to run the write — do **not** treat an unreachable tracker as licence to skip check-before-create. Creating a duplicate is worse than pausing to ask.
+**If the session has no token**, say so and ask the user to run the write — but do the read yourself first. A missing token is never a reason to skip check-before-create: the search is anonymous. Creating a duplicate is worse than pausing to ask.
 
 ## Wayfinder conventions
 

@@ -27,13 +27,13 @@ Ver `docs/agents/domain.md` para como skills devem consumir esses docs (`app/` �
 Convenções específicas deste domínio, além das do perfil global:
 - **ADR revertida não é apagada** — fica no repo com nota do porquê a decisão mudou (ver `order/0009` e `order/0010` como exemplo).
 - **Revisão de ADR existente é anexada, não reescrita** — nota de revisão datada no fim do arquivo.
-- Infra (k3s on-prem via ArgoCD, Postgres/Kafka/Apicurio) vive em repositório separado (`bonespirito-cluster-k3s-infra`, privado) — decisões de infra não entram aqui.
+- Infra (k3s on-prem via ArgoCD, Postgres/Kafka/Apicurio) vive em repositório separado (`bonespirito-cluster-k3s-infra`, público) — decisões de infra não entram aqui.
 
 ## Agent skills
 
 ### Issue tracker
 
-Codeberg Issues (Forgejo), repo privado — toda operação exige credencial. Transporte único: API REST do Forgejo com token. O `tea` CLI **não é mais usado neste projeto**. See `docs/agents/issue-tracker.md`.
+Codeberg Issues (Forgejo), repo público — leitura é anônima, escrita exige credencial. Transporte único: API REST do Forgejo com token. O `tea` CLI **não é mais usado neste projeto**. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
