@@ -11,6 +11,12 @@ Repo-specific context for OpenCode sessions. If docs conflict with code, trust c
 
 **Domain work is `app/` only.** `doc/transcripts/`, `CLAUDE.md`, `docs/agents/`, and `.claude/` are unrelated. Skills scoped to `app/` should treat `app/` as root, not the repo root.
 
+## Working alongside other sessions
+
+Several agent sessions work this project at once, across two repos and two CLIs, coordinated over the mcp-bus barramento. **Before joining the bus, opening a branch or a PR, read [`docs/agents/multi-session.md`](docs/agents/multi-session.md)** — it is the single source for who is who, who decides what, and how to work in parallel without collisions.
+
+Two rules from it that catch a session out immediately: your `session_id` and role are **assigned by George** in that file, not chosen by you; and a PR opens as `WIP:` and is merged by George alone.
+
 ## Only executable command
 
 ```bash
