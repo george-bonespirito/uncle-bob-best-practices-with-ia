@@ -36,8 +36,16 @@ _Avoid_: rollback (termo genérico demais fora do contexto de transação de ban
 Uma linha de produto dentro de um Order — SKU, quantidade, preço unitário, dado de produto. O Order é o aggregate root; Order Item nunca existe fora de um Order, e a concorrência (`version`) é do Order inteiro, não por item — ver [[0001-optimistic-locking-for-order-writes]].
 _Avoid_: line item (isolado, sem o resto do vocabulário em inglês do contexto), produto do pedido
 
+**Fulfillment Status**:
+Situação de atendimento de um Order Item — `FULFILLED` ou `NOT_FULFILLED`, com motivo quando não atendido (hoje só `PRODUCT_INACTIVE`). Existe porque um pedido pode ser atendido em parte: produto descontinuado não recusa o pedido inteiro, deixa aquele item de fora — ver [[0012-partial-fulfillment-for-inactive-products]]. É a única situação que vive no item; status de processamento é do Order.
+_Avoid_: status do item (ambíguo com o status do Order), item cancelado, item rejeitado (rejeição é da linha da planilha no import, coisa diferente — ver Rejected Order Row)
+
+**Partial Fulfillment**:
+Order que segue o fluxo com parte dos seus Order Items marcados `NOT_FULFILLED`. As etapas seguintes operam sobre os itens atendidos — crédito, estoque, carga e fatura valem sobre o total reduzido. Order sem nenhum item atendido não é Partial Fulfillment: é cancelado.
+_Avoid_: pedido parcial, entrega parcial (é do Route/entrega, não deste contexto), backorder (implica atender depois, que não existe aqui)
+
 **Snapshot**:
-Cópia denormalizada de dado de outro bounded context (Customer, Product), gravada no Order/Order Item no momento da Data Enrichment. Não é fonte de verdade — [Customers](../customers/CONTEXT.md)/Products continuam donos do dado real; o snapshot só existe pra o Order não precisar consultar outro MS depois de enriquecido. Carrega dado de negócio do pedido (nome, documento, endereço de entrega, descrição de produto) — nunca dado de contato, que precisa estar atualizado no momento de uso e por isso é consultado direto no dono.
+Cópia denormalizada de dado de outro bounded context (Customer, Product), gravada no Order/Order Item no momento da Data Enrichment. Não é fonte de verdade — [Customers](../customers/CONTEXT.md)/Products continuam donos do dado real; o snapshot só existe pra o Order não precisar consultar outro MS depois de enriquecido. Carrega dado de negócio do pedido (nome, documento, endereço de entrega, Name e Category do produto) — nunca a Description do produto, que fica no [Products](../products/CONTEXT.md), nem dado de contato, que precisa estar atualizado no momento de uso e por isso é consultado direto no dono.
 _Avoid_: cache (implica invalidação/expiração, que não existe aqui — snapshot é permanente, tirado uma vez; e o Order não mantém cache de dado de outro contexto)
 
 **Import Batch**:
