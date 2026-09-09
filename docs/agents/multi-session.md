@@ -19,15 +19,26 @@ Nome atribuído torna a renomeação silenciosa impossível: quem não está no 
 
 | `session_id` | CLI | Role | Repo | Observação |
 |---|---|---|---|---|
-| `app-design` | claude-code | Architect | `uncle-bob-best-practices-with-ia` | sessão de design da aplicação, host `llm-server` |
+| `app-design` | claude-code | Architect | `uncle-bob-best-practices-with-ia` | host `llm-server`; **sem ferramenta de desenvolvimento** — arquitetura e estrutura, não execução |
 | `app-opencode` | opencode | Developer | `uncle-bob-best-practices-with-ia` | janela aberta de propósito por George |
 | `infra` | claude-code | DEVOPS | `bonespirito-cluster-k3s-infra` | primária do lado de infra; endereço de DM |
 | `opencode` | opencode | DEVOPS | `bonespirito-cluster-k3s-infra` | secundária, defere à `infra` |
-| `mac-architect` | claude-code | Architect | — | MacBook de George; dona da negociação do mcp-bus |
+| `mac-architect` | claude-code | Developer | `uncle-bob-best-practices-with-ia` | MacBook de George; **é onde o código roda** — tem JVM, Gradle e Node |
 
 Ao entrar no barramento, a sessão usa **exatamente** a linha dela: mesmo `session_id`, mesma role. Se o registro e a realidade divergirem, o registro manda — refaça o `join`.
 
-Duas sessões aparecem com role `Architect` de propósito: `app-design` e `mac-architect`. Vale o pareamento da seção seguinte, e George já definiu a divisão — `mac-architect` conduz a negociação do protocolo do mcp-bus; `app-design` apoia.
+### A divisão segue a máquina, não a preferência
+
+`llm-server` **não tem** JVM, Gradle, Node nem Docker — verificado, os quatro ausentes. `app-design` mora ali, então não pode compilar, rodar teste, executar `./gradlew check` nem `node doc/transcripts/build.mjs`. O MacBook tem tudo isso.
+
+Daí a atribuição de papéis:
+
+- **`app-design` é o Architect** — decide e escreve arquitetura, ADR, glossário, `.feature`, estrutura de projeto. Trabalha em documento, que é o que a máquina dele permite.
+- **`mac-architect` é o Developer** — implementa, compila, roda a pirâmide de qualidade e é a única sessão que pode afirmar que algo passa.
+
+**Consequência que precisa estar escrita:** nada que venha do `app-design` sobre código em execução é verificado. Ele pode raciocinar sobre o código e não pode testá-lo. Só o Developer fecha "funciona", e só com saída verde na mão — a mesma regra que já valia para build neste projeto.
+
+O `session_id` `mac-architect` **fica como está**, apesar de a role ter mudado. Renomear custaria uma credencial nova emitida pela infra e deixaria o nome antigo para trás — o problema de sessão órfã que a ADR-0002 existe para evitar. O nome é rótulo; a autoridade está na role, e a role está nesta tabela.
 
 ### Sessão que não está no registro
 
@@ -45,6 +56,8 @@ Só acontece se George registrar assim de propósito. Nesse caso as duas parear 
 Qualquer uma pode passar o bastão anunciando no squad. George sobrepõe quando quiser.
 
 > `joined_at` só é confiável para associações iniciadas depois do fix `f594f56` no mcp-bus. As anteriores foram sobrescritas por re-joins e não há como restaurar — a ordem de antiguidade de antes disso mente.
+
+> Hoje há **um único Architect** (`app-design`). A regra de pareamento acima só volta a valer se George registrar duas sessões na mesma role de novo.
 
 ## Trabalho paralelo
 
