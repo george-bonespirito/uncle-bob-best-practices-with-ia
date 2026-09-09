@@ -6,8 +6,8 @@ Sistema de referência de supply chain: um Order é criado via importação em m
 
 - [Order](./order/CONTEXT.md) — dono do Pedido de compra e seu status; único writer do agregado, recebe o resultado de todas as Processing Steps
 - [Customers](./customers/CONTEXT.md) — cadastro de clientes; fonte de verdade de nome, documento, endereços de entrega e WhatsApp do comprador
-- Products — cadastro de produtos ([CONTEXT.md](./products/CONTEXT.md))
-- Pricing — valor unitário por SKU _(ainda sem CONTEXT.md — linguagem não resolvida)_
+- [Products](./products/CONTEXT.md) — cadastro de produtos; fonte de verdade de nome, categoria, atributos físicos e situação (`ACTIVE`/`INACTIVE`)
+- [Pricing](./pricing/CONTEXT.md) — valor unitário por SKU; catálogo único, sem preço por cliente nem desconto
 - Stock — estoque por produto/SKU _(ainda sem CONTEXT.md — linguagem não resolvida)_
 - Contabil — dado de crédito do cliente _(ainda sem CONTEXT.md — linguagem não resolvida)_
 - Invoice — nota fiscal _(ainda sem CONTEXT.md — linguagem não resolvida)_
