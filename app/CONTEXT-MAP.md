@@ -12,7 +12,7 @@ Sistema de referência de supply chain: um Order é criado via importação em m
 - [Contabil](./contabil/CONTEXT.md) — limite de crédito por cliente e os holds sobre ele; sem pagamento, sem score
 - [Invoice](./invoice/CONTEXT.md) — documento interno de faturamento; sem imposto, sem SEFAZ, terminal
 - [Route](./route/CONTEXT.md) — plano de entrega: rota, código de rastreio e previsão; o sistema não acompanha a entrega
-- Notifications — envio de notificação ao cliente a cada mudança de status do pedido (canal WhatsApp hoje) _(ainda sem CONTEXT.md — linguagem não resolvida)_
+- [Notifications](./notifications/CONTEXT.md) — aviso ao cliente por WhatsApp; fora da Saga, não bloqueia pedido
 
 ## Relationships
 
