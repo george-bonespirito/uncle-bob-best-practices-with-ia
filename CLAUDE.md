@@ -25,6 +25,7 @@ app/
 Ver `docs/agents/domain.md` para como skills devem consumir esses docs (`app/` é a raiz do domínio, não a raiz do repo git).
 
 Convenções específicas deste domínio, além das do perfil global:
+- **Diagrama acompanha a decisão, no mesmo PR.** Spec, ADR ou `CONTEXT.md` que muda sem atualizar o `.drawio.svg` correspondente deixa o diagrama mentindo — e ninguém revisa SVG em code review, então a mentira sobrevive. Os `.drawio.svg` de `app/docs/diagrams/` são editáveis como texto: os rótulos aparecem no XML embutido e podem ser alterados com substituição de string, validando o XML depois. Um hook (`.claude/hooks/diagram-guard.py`) lista o que ficou para trás ao fim da sessão; ele avisa, não bloqueia.
 - **ADR revertida não é apagada** — fica no repo com nota do porquê a decisão mudou (ver `order/0009` e `order/0010` como exemplo).
 - **Revisão de ADR existente é anexada, não reescrita** — nota de revisão datada no fim do arquivo.
 - Infra (k3s on-prem via ArgoCD, Postgres/Kafka/Apicurio) vive em repositório separado (`bonespirito-cluster-k3s-infra`, público) — decisões de infra não entram aqui.

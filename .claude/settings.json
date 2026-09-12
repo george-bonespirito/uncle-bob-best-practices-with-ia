@@ -34,6 +34,16 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/diagram-guard.py\" 2>>~/.claude/hook-errors.log || true"
+          }
+        ]
+      }
     ]
   }
 }
