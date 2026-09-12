@@ -14,13 +14,15 @@ Decidimos **desviar para um stream de quarentena**, marcado como inválido. Mant
 
 Descartar dado porque ele está mal formado é a decisão que se lamenta no meio de um incidente.
 
-## Dois labels indexados, não três
+## Três labels indexados — e a primeira versão desta ADR errou aqui
 
-A infra propôs indexar `service.name`, `deployment.environment` e `k8s.namespace.name`.
+A recomendação da infra era indexar `service.name`, `deployment.environment` e `k8s.namespace.name`. Esta ADR, na primeira versão, cortou o namespace com o argumento de que ele duplicaria o ambiente **enquanto cada ambiente fosse um namespace**.
 
-Os dois primeiros são o eixo real de consulta. O terceiro só informa se namespace e ambiente forem coisas diferentes — e enquanto cada ambiente for um namespace, ele duplica informação e paga cardinalidade por nada.
+A premissa estava invertida, e a infra respondeu com a contagem em vez do argumento: **8 namespaces, 1 ambiente**. A relação é o oposto — um ambiente, muitos namespaces. `k8s.namespace.name` não duplica nada; é o único label que separa workload de workload hoje, e é por ele que se consulta. Quem é constante é `deployment.environment`.
 
-O ônus é de justificar cada label, não de recusá-lo: a própria infra apanhou disso montando a coleta, quando o coletor injetava um label com nome de pod e criaria um stream novo a cada restart. A decisão se revisa no dia em que houver mais de um namespace por ambiente.
+Ficam os três. O ambiente constante custa quase nada (um label com um valor multiplica a cardinalidade por um) e deixa o eixo pronto para um segundo cluster.
+
+Fica registrado que o erro foi meu e o método foi dela: o ônus de justificar um label é de quem o propõe, e ela o cumpriu medindo em vez de argumentando. O gatilho que eu havia escrito — "revisa-se quando houver mais de um namespace por ambiente" — disparou imediatamente, o que é o comportamento desejado de um gatilho e não uma desculpa para a decisão errada.
 
 ## PII proibida por nome, não por princípio
 
@@ -31,6 +33,10 @@ Nossos glossários já definem exatamente o que não pode sair: o `customer_snap
 O padrão nomeia esses campos e manda referenciar por `customer_id` e `order_id`. A regra vale inclusive em exceção — mensagem de erro que serializa o agregado inteiro é o caminho mais comum do vazamento, e é silencioso, porque ninguém escreveu `log.debug(customer.document)`.
 
 Isso é decisão que só a aplicação pode tomar: a infra não sabe quais campos são pessoais.
+
+O Collector acrescenta uma rede de segurança — mascara padrões de CPF/CNPJ, trocando por `[REDACTED-DOC]` em vez de descartar a linha. Descartar seria aplicar ao contrário o argumento da quarentena: destruiria a evidência justamente quando alguém logou o que não devia.
+
+**A rede é rasa e está escrita como rasa.** Nome legal, endereço e telefone não têm formato reconhecível por regex, então ela pega um dos quatro campos. A infra fez questão de dizer isso, e tem razão: rede de segurança que ninguém entende vira falsa segurança.
 
 ## Auditoria não depende do Loki
 
