@@ -26,3 +26,15 @@ A decisão desta ADR não muda — a compensação continua liberando o que foi 
 
 Ver também [ADR order/0014](../../order/docs/adr/0014-out-of-stock-cancels-order.md), que define o escopo da reserva e por que ela não expira.
 
+---
+
+## Revisão — 2026-09-12 (segunda nota do dia)
+
+O item 3 desta ADR define `release-stock-reservation` e `release-credit-hold` como tasks que revertem **o efeito colateral inteiro**, identificado por id. Isso deixou de bastar.
+
+Com o atendimento parcial ([ADR order/0012](../../order/docs/adr/0012-partial-fulfillment-for-inactive-products.md)), um item pode sair do pedido **depois** de crédito e estoque comprometidos — na reverificação de Product Status da Invoice Generation. Reverter tudo perderia a venda; não reverter nada vazaria estoque e crédito.
+
+[ADR order/0018](../../order/docs/adr/0018-order-shrinkage-at-invoice.md) decide: **as duas tasks passam a operar sobre parte**. `release-stock-reservation` aceita lista de itens; a Hold Conversion recebe valor em vez de converter o hold inteiro. A idempotência do item 3 continua valendo e ganha escopo — liberar item já liberado é no-op.
+
+O resto desta ADR não muda.
+
