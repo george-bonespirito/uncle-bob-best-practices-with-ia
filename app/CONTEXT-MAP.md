@@ -11,7 +11,7 @@ Sistema de referência de supply chain: um Order é criado via importação em m
 - [Stock](./stock/CONTEXT.md) — quantidade disponível por SKU e as reservas sobre ela; estoque único, sem localização
 - [Contabil](./contabil/CONTEXT.md) — limite de crédito por cliente e os holds sobre ele; sem pagamento, sem score
 - [Invoice](./invoice/CONTEXT.md) — documento interno de faturamento; sem imposto, sem SEFAZ, terminal
-- Route — envio e tracking do pedido _(ainda sem CONTEXT.md — linguagem não resolvida)_
+- [Route](./route/CONTEXT.md) — plano de entrega: rota, código de rastreio e previsão; o sistema não acompanha a entrega
 - Notifications — envio de notificação ao cliente a cada mudança de status do pedido (canal WhatsApp hoje) _(ainda sem CONTEXT.md — linguagem não resolvida)_
 
 ## Relationships
