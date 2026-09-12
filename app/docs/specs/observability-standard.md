@@ -20,11 +20,11 @@ Todo sinal (log, trace, métrica) carrega:
 
 ## Labels indexados
 
-Só **dois**: `service.name` e `deployment.environment`.
+Três: `service.name`, `k8s.namespace.name` e `deployment.environment`.
 
-Todo o resto — `trace_id`, `span_id`, `k8s.pod.name`, `k8s.namespace.name` — vai para structured metadata, onde é consultável sem custo de índice.
+Todo o resto — `trace_id`, `span_id`, `k8s.pod.name` — vai para structured metadata, onde é consultável sem custo de índice.
 
-`k8s.namespace.name` fica **fora do índice** enquanto namespace e ambiente forem a mesma coisa; um label que duplica outro paga cardinalidade sem informar. Se houver mais de um namespace por ambiente, a decisão se revisa.
+`k8s.namespace.name` é o label que **de fato separa** um workload de outro: o cluster tem 8 namespaces e um único ambiente, então é por ele que se consulta. `deployment.environment` é constante hoje (um cluster só), o que o torna barato — um label com um valor multiplica a cardinalidade por um — e já deixa o eixo pronto para o dia em que houver um segundo ambiente.
 
 > **Limite do backend, e ele morde:** structured metadata tem teto de **64 KB e 128 entradas por linha**, e o excesso é **rejeitado com HTTP 400 — não truncado**. Atributo demais não gera log gordo, gera perda de log.
 
@@ -48,6 +48,14 @@ Nominal, não genérico — regra de "não logue dado sensível" não impede nad
 Referencie por `customer_id` e `order_id`, que são identificadores sem conteúdo pessoal. Quem precisar do dado consulta o contexto dono, que é onde o acesso é controlado.
 
 Isto vale inclusive em exceção: mensagem de erro que serializa o agregado inteiro vaza tudo de uma vez, e é o caminho mais comum do vazamento.
+
+### A rede de segurança do Collector é rasa, e não substitui a lista
+
+O Collector **mascara** padrões de CPF/CNPJ no corpo da linha, trocando por `[REDACTED-DOC]`. Mascara, não derruba: descartar a linha destruiria a evidência exatamente no caso em que alguém logou o que não devia — que é quando se quer o resto da linha para achar o código culpado. O `trace_id`, o `service.name`, a mensagem e a stack sobrevivem; perde-se só o número.
+
+**Isso pega um dos quatro campos proibidos.** Nome legal, endereço de entrega e telefone não têm formato reconhecível por expressão regular. A proteção real é a regra por nome de campo acima; o Collector só apara o descuido no formato mais óbvio.
+
+Ler essa máscara como suficiente é o erro que ela convida.
 
 ## Auditoria não vive em log
 
