@@ -34,3 +34,36 @@ Feature: Notificação ao cliente a cada mudança de status do pedido
     When o status do Order muda para "PROCESSING"
     Then MS Notifications consulta o MS Customers e obtém o número atual
     And a mensagem é enviada para o número atual
+
+  Scenario: Status interno não notifica o cliente
+    Given um Order "#123" em "PROCESSING"
+    When o status muda para "COMPENSATING"
+    Then nenhuma mensagem WhatsApp é enviada
+    And a razão é que "COMPENSATING" não é Notifiable Status
+
+  Scenario: AWAITING_MASTER_DATA não notifica
+    Given um Order "#123" em "PROCESSING"
+    When o status muda para "AWAITING_MASTER_DATA" por cadastro faltando
+    Then nenhuma mensagem WhatsApp é enviada
+    And a razão é que a lacuna é de cadastro nosso, e o cliente não pode agir sobre ela
+
+  Scenario: Evento CDC repetido não gera segunda mensagem
+    Given um Order "#123" cuja transição para "COMPLETED" já foi notificada
+    When o mesmo evento CDC chega novamente após reprocessamento do tópico
+    Then nenhuma mensagem adicional é enviada
+    And a deduplicação usa a chave (order_id, novo_status)
+    And a razão é que o offset muda no reprocessamento e não serve como chave
+
+  Scenario: Falha de envio não afeta o Order
+    Given um Order "#123" que mudou para "COMPLETED"
+    And a Meta Cloud API está indisponível
+    When o envio falha após esgotar as tentativas
+    Then a notificação vai para o DLT
+    And o Order permanece em "COMPLETED"
+    And nenhuma ação compensatória é disparada no Order
+
+  Scenario: Template não carrega dado do cliente nem do item
+    Given um Order "#123" com 3 itens e customer_snapshot preenchido
+    When a mensagem de mudança para "PROCESSING" é montada
+    Then o template contém o número do pedido e o status
+    And não contém nome, documento, endereço nem valores
