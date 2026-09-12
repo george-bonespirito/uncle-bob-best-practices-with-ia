@@ -48,8 +48,25 @@ A alternativa seria aumentar a retenção do que fosse auditoria, e ela inverte 
 
 Consequência que aceitamos: se a resposta a "onde isso fica registrado?" for só o Loki, o desenho está errado, e a correção é no domínio — não na retenção.
 
-## O que não decidimos aqui
+## O que este padrão não decidia na primeira versão
 
-Métricas de domínio expostas via OpenTelemetry (gray area #22 do PRD) continuam abertas — profundidade da fila `order_update_event`, taxa de conflito de `version`, contagem de Orders em `AWAITING_MASTER_DATA`. Este padrão diz como emitir; não diz o que medir.
+Métricas de domínio ficaram abertas: o padrão dizia como emitir, não o que medir. Resolvido na revisão abaixo.
 
 Status: accepted
+
+---
+
+## Revisão — 2026-09-12: o que medir
+
+O critério veio antes da lista: **uma métrica só existe se alguém faz algo diferente ao vê-la.** Sem isso, a lista cresce sozinha e termina em painel que ninguém abre. Cada métrica passa a carregar, na definição, o problema que denuncia e a ação esperada — a [spec](../specs/observability-standard.md) tem a tabela.
+
+Seis métricas. Três vinham do tracker (fila `order_update_event`, conflito de `version`, Orders em `AWAITING_MASTER_DATA`) e três foram acrescentadas por serem o mesmo argumento aplicado a casos que ninguém tinha listado:
+
+- **`COMPENSATION_FAILED`** é fila manual da mesma natureza do `AWAITING_MASTER_DATA`, e mais grave: há crédito e estoque presos sem dono.
+- **Profundidade dos `.dlt`** — mensagem que nenhum retry salvou some sem ninguém ver, que é o motivo de o DLT existir em vez do descarte.
+- **Taxa de item `NOT_FULFILLED`** é a menos óbvia. Atendimento parcial é silencioso por desenho ([ADR order/0012](../../order/docs/adr/0012-partial-fulfillment-for-inactive-products.md)): o pedido segue e o cliente recebe só um aviso genérico. Taxa alta significa **catálogo sujo** — SKUs descontinuados continuam chegando nas planilhas —, e o problema é da origem, não do pedido. Sem a métrica, descobriríamos pelo cliente reclamando.
+
+**Cardinalidade:** nenhuma métrica leva `order_id`, `sku` ou `customer_id` como label. É o mesmo erro que derrubou o label de pod na coleta de log, agora em métrica, onde cada série persiste no tempo.
+
+**Métrica de negócio fica de fora** — pedidos por dia, faturamento, ticket médio. É BI, com outro consumidor e outro ciclo de vida, e arrastaria agregação e PII para um canal que este padrão restringiu de propósito.
+
