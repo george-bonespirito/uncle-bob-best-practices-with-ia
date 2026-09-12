@@ -18,6 +18,14 @@ O PRD dizia que a reserva é "atômica pro pedido inteiro — não há reserva p
 
 Atômica continua valendo no que importa: dentro daquele conjunto, ou tudo é reservado ou nada é, com um `stockReservationId` só.
 
+## Cadastro ausente não é falta de estoque
+
+Um SKU **sem registro de estoque** não é o mesmo que um SKU com saldo insuficiente. O primeiro é cadastro faltando; o segundo é condição do negócio.
+
+Cadastro ausente segue o caminho dos irmãos — `Product Not Found` e `Price Not Found`: trava em `AWAITING_MASTER_DATA` até alguém cadastrar, sem cancelar nada. Só saldo insuficiente com registro existente é Out of Stock.
+
+A distinção importa porque os dois desfechos são opostos, e confundi-los cancelaria pedidos por um cadastro que ninguém fez ainda — exatamente o que a [ADR 0011](0011-async-only-enrichment-await-master-data.md) decidiu evitar.
+
 ## Quantidade parcial não existe
 
 Item que pede 10 com 4 disponíveis é Out of Stock, não item parcialmente atendido.

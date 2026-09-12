@@ -164,7 +164,7 @@ flowchart LR
 
 ### C4 — Level 3: Component (MS Order)
 
-Diagrama editável: [`app/docs/diagrams/c4-l3-order-components.drawio.svg`](../diagrams/c4-l3-order-components.drawio.svg). Só MS Order tem L3 — é o único container com detalhe suficiente resolvido; dos outros 8 MS, só Customers e Products têm `CONTEXT.md` (gray area #5) e nenhum tem detalhe interno resolvido, então um L3 deles seria invenção, não design. Consistente com `rules/docs.md`: "C4 Level 3 gerado sob demanda quando a complexidade justifica."
+Diagrama editável: [`app/docs/diagrams/c4-l3-order-components.drawio.svg`](../diagrams/c4-l3-order-components.drawio.svg). Só MS Order tem L3 — é o único container com detalhe suficiente resolvido; dos outros 8 MS, quatro já têm `CONTEXT.md` — Customers, Products, Pricing e Stock (gray area #5) — mas nenhum tem detalhe interno resolvido e nenhum tem detalhe interno resolvido, então um L3 deles seria invenção, não design. Consistente com `rules/docs.md`: "C4 Level 3 gerado sob demanda quando a complexidade justifica."
 
 Decidido (verde): Bulk Import Handler, `Order`/`OrderItem` (JPA, aggregate root), Repository, os 7 consumers Kafka, `order_update_event` (staging), worker pool `SKIP LOCKED`, apply com optimistic locking, Debezium connector, DLT Publisher. Indefinido (cinza pontilhado): contrato REST do endpoint de import (path/shape — nunca especificado), contract test de schema Avro em CI (gray area #12), classificador transitória-vs-permanente (o conceito está na ADR raiz 0005, os tipos de exceção específicos não).
 
@@ -292,6 +292,8 @@ sequenceDiagram
 - **Glossário do domínio Order:** [`app/order/CONTEXT.md`](../../order/CONTEXT.md)
 - **Glossário do domínio Customers:** [`app/customers/CONTEXT.md`](../../customers/CONTEXT.md)
 - **Glossário do domínio Products:** [`app/products/CONTEXT.md`](../../products/CONTEXT.md)
+- **Glossário do domínio Pricing:** [`app/pricing/CONTEXT.md`](../../pricing/CONTEXT.md)
+- **Glossário do domínio Stock:** [`app/stock/CONTEXT.md`](../../stock/CONTEXT.md)
 - **Mapa de contextos (9 MS):** [`app/CONTEXT-MAP.md`](../../CONTEXT-MAP.md)
 - **ADR raiz 0001** — worker-polling entre Orkes e os 7 MS de dado, em vez de HTTP push: [`app/docs/adr/0001-worker-polling-for-processing-steps.md`](../adr/0001-worker-polling-for-processing-steps.md)
 - **ADR raiz 0002** — fluxo compensatório (Saga): quais steps compensam, ordem do workflow, estado `COMPENSATION_FAILED`: [`app/docs/adr/0002-compensating-flow-for-order-processing.md`](../adr/0002-compensating-flow-for-order-processing.md)

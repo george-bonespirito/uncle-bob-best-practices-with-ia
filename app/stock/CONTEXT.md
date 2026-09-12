@@ -32,6 +32,10 @@ _Avoid_: atendimento parcial de item (o Order tem Partial Fulfillment, que é it
 Liberação de uma Stock Reservation, devolvendo as unidades ao Available Quantity. Acontece **só** por ação compensatória explícita, identificada pelo `stockReservationId`; liberar um id já liberado é no-op, não erro. **Não há expiração automática** — reserva presa alguém percebe, reserva que volta sozinha vira venda dupla silenciosa.
 _Avoid_: TTL, expiração, timeout de reserva, rollback automático
 
+**Stock Record Not Found**:
+O SKU não tem registro de estoque neste contexto — diferente de ter registro com `Available Quantity` zero, que é [Out of Stock](#). Cadastro ausente **não cancela** o pedido: trava em `AWAITING_MASTER_DATA` até o registro existir e a task ser reexecutada, o mesmo caminho de `Product Not Found` e `Price Not Found`. Indisponibilidade deste contexto nunca é Stock Record Not Found.
+_Avoid_: estoque zerado (zero é um saldo válido e é Out of Stock, não ausência), SKU sem estoque (ambíguo entre as duas coisas), produto não cadastrado
+
 **Stock Movement**:
 Não existe aqui. Entrada de mercadoria, inventário e baixa por expedição são de outro domínio, fora do escopo deste sistema. Este contexto conhece o Stock Balance atual e as reservas sobre ele, e nada sobre como o saldo chegou a esse valor.
 _Avoid_: entrada, saída, inventário, movimentação, kardex
