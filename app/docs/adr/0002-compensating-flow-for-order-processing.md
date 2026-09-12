@@ -15,3 +15,14 @@ Alternativa rejeitada: permitir que Enrichment/Route Calculation sejam best-effo
 Status: accepted
 
 **Revisão (2026-09-03) — a ordem mudou, a decisão não.** As 5 Processing Steps passaram a executar em sequência por pedido ([ADR raiz 0008](./0008-sequential-processing-steps-per-order.md)): o fork-join das 4 descrito no item 1 não existe mais. O que muda é o item 2: o conjunto de etapas a compensar deixa de depender do timing ("o que já tinha terminado quando a falha foi detectada") e passa a ser determinístico — compensam-se as etapas anteriores à que falhou na fila. Tudo o mais desta ADR continua valendo: quais etapas têm efeito colateral, quem executa a compensação, o transporte por worker-polling e o tratamento de `COMPENSATION_FAILED`. O ciclo de status do item 4 ganha `AWAITING_MASTER_DATA` ([ADR order/0011](../../order/docs/adr/0011-async-only-enrichment-await-master-data.md)), possível só durante a Data Enrichment.
+
+---
+
+## Revisão — 2026-09-12
+
+Esta ADR descreve a Stock Validation como quem "decrementa/reserva" estoque. **Reservar não é decrementar**, e a diferença passou a ter nome com o [glossário do Stock](../../stock/CONTEXT.md): `Stock Balance` é a quantidade física e não muda na reserva; o que muda é a `Available Quantity`, que é derivada.
+
+A decisão desta ADR não muda — a compensação continua liberando o que foi reservado, por `stockReservationId`, de forma idempotente. O que muda é o modelo mental: implementar "decrementar" como `balance = balance - qty` apagaria a distinção entre físico e disponível e tornaria a liberação indistinguível de uma entrada de mercadoria.
+
+Ver também [ADR order/0014](../../order/docs/adr/0014-out-of-stock-cancels-order.md), que define o escopo da reserva e por que ela não expira.
+

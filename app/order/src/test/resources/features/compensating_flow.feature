@@ -22,7 +22,7 @@ Feature: Fluxo compensatório quando uma Processing Step falha
 
   Scenario: Ação compensatória falha e exige intervenção manual
     Given um Order "#123" em "COMPENSATING", com Stock Validation pendente de compensação
-    When a ação compensatória de liberar estoque falha após esgotar as tentativas
+    When a task compensatória "release-stock-reservation" falha após esgotar as tentativas
     Then o Order muda para "COMPENSATION_FAILED"
     And o Order não volta a tentar a compensação automaticamente
 

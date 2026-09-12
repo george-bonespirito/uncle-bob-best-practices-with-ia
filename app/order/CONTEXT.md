@@ -37,12 +37,16 @@ Uma linha de produto dentro de um Order — SKU, quantidade, preço unitário, d
 _Avoid_: line item (isolado, sem o resto do vocabulário em inglês do contexto), produto do pedido
 
 **Fulfillment Status**:
-Situação de atendimento de um Order Item — `FULFILLED` ou `NOT_FULFILLED`, com motivo quando não atendido (hoje só `PRODUCT_INACTIVE`). Existe porque um pedido pode ser atendido em parte: produto descontinuado não recusa o pedido inteiro, deixa aquele item de fora — ver [[0012-partial-fulfillment-for-inactive-products]]. É a única situação que vive no item; status de processamento é do Order.
+Situação de atendimento de um Order Item — `FULFILLED` ou `NOT_FULFILLED`, com motivo quando não atendido (hoje só `PRODUCT_INACTIVE`; falta de estoque **não** entra aqui, porque cancela o Order em vez de excluir o item). A Stock Reservation cobre exatamente o conjunto `FULFILLED`, e é atômica sobre ele. Existe porque um pedido pode ser atendido em parte: produto descontinuado não recusa o pedido inteiro, deixa aquele item de fora — ver [[0012-partial-fulfillment-for-inactive-products]]. É a única situação que vive no item; status de processamento é do Order.
 _Avoid_: status do item (ambíguo com o status do Order), item cancelado, item rejeitado (rejeição é da linha da planilha no import, coisa diferente — ver Rejected Order Row)
 
 **Order Total**:
 Soma de `unit_price × quantity` dos Order Items `FULFILLED`. **Derivado, nunca armazenado** — item pode virar `NOT_FULFILLED` depois da precificação, inclusive no faturamento, e um total gravado ficaria errado em silêncio nesses casos. É o valor que a Credit Validation submete e o que a fatura cobra — ver [[0013-order-total-derived-and-price-frozen-at-enrichment]].
 _Avoid_: total_amount (não existe como coluna), valor do pedido (ambíguo entre com e sem itens não atendidos), subtotal
+
+**Out of Stock**:
+Falha da Stock Validation por [Available Quantity](../stock/CONTEXT.md) insuficiente. É a única falha de cadastro que **cancela** o Order: `Product Not Found` e `Price Not Found` esperam em `AWAITING_MASTER_DATA`, produto `INACTIVE` deixa o item de fora, e Out of Stock cancela o pedido inteiro. A diferença é que falta de estoque é **transitória** — ver [[0014-out-of-stock-cancels-order]].
+_Avoid_: produto indisponível (colide com `INACTIVE`), sem estoque como motivo de item (não existe: falta de estoque não gera `NOT_FULFILLED`, cancela o Order), ruptura
 
 **Partial Fulfillment**:
 Order que segue o fluxo com parte dos seus Order Items marcados `NOT_FULFILLED`. As etapas seguintes operam sobre os itens atendidos — crédito, estoque, carga e fatura valem sobre o total reduzido. Order sem nenhum item atendido não é Partial Fulfillment: é cancelado.
