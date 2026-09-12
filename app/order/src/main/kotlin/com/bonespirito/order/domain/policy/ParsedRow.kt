@@ -20,7 +20,7 @@ private const val COL_QUANTITY = 5
 /**
  * Só o que dá pra verificar dentro do próprio arquivo produz erro de linha (dado
  * obrigatório ausente) — existência de cliente/produto é responsabilidade da
- * Data Enrichment, não do import (ver Rejected Order Row, CONTEXT.md).
+ * Data Enrichment, não do import (ver ImportBatchRowError, CONTEXT.md).
  */
 fun validateRow(rowNumber: Int, columns: List<String>): ParsedRow {
     val sourceSystemCode = columns.getOrElse(COL_SOURCE_SYSTEM_CODE) { "" }

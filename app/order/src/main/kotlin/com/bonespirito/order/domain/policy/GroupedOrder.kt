@@ -16,6 +16,10 @@ data class GroupedOrder(
  * Linhas com o mesmo par (source_system_code, source_order_number) formam um único Order —
  * a planilha é denormalizada, o cabeçalho do pedido se repete em cada linha de item.
  */
+fun mergeQuantitiesBySku(rows: List<NumberedRow>): List<Pair<String, Int>> =
+    rows.groupBy { it.row.sku }
+        .map { (sku, group) -> sku to group.sumOf { it.row.quantity } }
+
 fun groupIntoOrders(rows: List<NumberedRow>): List<GroupedOrder> =
     rows.groupBy { it.row.sourceSystemCode to it.row.sourceOrderNumber }
         .map { (key, groupRows) ->

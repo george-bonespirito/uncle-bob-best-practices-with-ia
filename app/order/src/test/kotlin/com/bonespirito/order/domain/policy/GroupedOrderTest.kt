@@ -33,6 +33,23 @@ class GroupedOrderTest {
     }
 
     @Test
+    fun `mesmo SKU no mesmo pedido soma a quantidade num unico item`() {
+        val customerId = UUID.randomUUID()
+        val createdAt = Instant.now()
+        val rows = listOf(
+            NumberedRow(1, ImportRow("ERP-SAP", "PO-001", customerId, createdAt, "SKU-1", 2)),
+            NumberedRow(2, ImportRow("ERP-SAP", "PO-001", customerId, createdAt, "SKU-1", 3)),
+            NumberedRow(3, ImportRow("ERP-SAP", "PO-001", customerId, createdAt, "SKU-2", 1)),
+        )
+
+        val po001 = groupIntoOrders(rows).single()
+        val merged = mergeQuantitiesBySku(po001.items)
+
+        assertThat(po001.items).hasSize(3)
+        assertThat(merged).containsExactly("SKU-1" to 5, "SKU-2" to 1)
+    }
+
+    @Test
     fun `sem chaves ja existentes nenhum grupo e duplicata`() {
         val grouped = listOf(umGrupo("PO-001"))
 

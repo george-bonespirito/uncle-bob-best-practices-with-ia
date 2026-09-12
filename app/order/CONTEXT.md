@@ -21,7 +21,7 @@ Situação em que duas escritas concorrentes leem o mesmo Order, cada uma modifi
 _Avoid_: race condition (genérico demais — Lost Update é o caso específico que temos aqui)
 
 **Order Status**:
-Estado do Order no ciclo de vida das Processing Steps. Valores: `PENDING` (criado, workflow ainda não disparado), `PROCESSING` (percorrendo a sequência de Processing Steps, uma de cada vez), `AWAITING_MASTER_DATA` (Data Enrichment travada por cliente ou produto que não existe no cadastro — espera indefinida até alguém cadastrar o dado e reexecutar a task; nada foi reservado nesse ponto, ver [[0011-async-only-enrichment-await-master-data]]), `INVOICING` (as 4 anteriores concluídas com sucesso, Invoice Generation em execução), `COMPLETED` (nota fiscal emitida, pedido concluído), `COMPENSATING` (uma Processing Step falhou permanentemente, ações compensatórias em andamento), `CANCELLED` (compensação concluída com sucesso), `COMPENSATION_FAILED` (uma ação compensatória falhou — estado terminal que exige intervenção manual, nunca fica em retry infinito).
+Estado do Order no ciclo de vida das Processing Steps. Valores: `PENDING` (criado, workflow ainda não disparado), `PROCESSING` (percorrendo a sequência de Processing Steps, uma de cada vez), `AWAITING_MASTER_DATA` (Data Enrichment travada por cliente ou produto que não existe no cadastro — espera indefinida até alguém cadastrar o dado e reexecutar a task; falta de um SKU trava o Order inteiro, não o item; nada foi reservado nesse ponto, ver [[0011-async-only-enrichment-await-master-data]]), `INVOICING` (as 4 anteriores concluídas com sucesso, Invoice Generation em curso — falha da nota não cancela nem compensa; a etapa é reexecutada automaticamente até emitir ou esgotar. Distinto de `AWAITING_MASTER_DATA`, que espera ação humana), `INVOICE_FAILED` (retries da nota esgotaram; crédito e estoque continuam reservados; só sai por reprocessar a nota ou por Cancellation), `COMPLETED` (nota fiscal emitida, pedido concluído), `COMPENSATING` (uma Processing Step falhou permanentemente, ou Cancellation humana, ações compensatórias em andamento), `CANCELLED` (compensação concluída com sucesso), `COMPENSATION_FAILED` (uma ação compensatória falhou — estado terminal que exige intervenção manual, nunca fica em retry infinito).
 _Avoid_: status genérico tipo "ACTIVE"/"DONE" sem esses valores canônicos
 
 **Hard-blocking Step**:
@@ -29,16 +29,24 @@ Processing Step cuja falha permanente impede o Order de avançar para Invoice Ge
 _Avoid_: required step, mandatory step
 
 **Compensating Action**:
-Ação executada por uma Processing Step compensatória (hoje: Credit Validation, Stock Validation) para desfazer seu próprio efeito colateral quando o Order é cancelado. Executada pelo mesmo MS dono do efeito colateral, sobre sua própria base — nunca por outro serviço. Ver [[0002-compensating-flow-for-order-processing]] (ADR raiz).
+Ação executada por uma Processing Step compensatória (hoje: Credit Validation, Stock Validation) para desfazer seu próprio efeito colateral quando o Order é cancelado. Disparada por falha permanente de Hard-blocking Step, ou por Cancellation humana. Executada pelo mesmo MS dono do efeito colateral, sobre sua própria base — nunca por outro serviço. Ver [[0002-compensating-flow-for-order-processing]] (ADR raiz).
 _Avoid_: rollback (termo genérico demais fora do contexto de transação de banco), undo
 
+**INVOICE_FAILED**:
+Retries automáticos da Invoice Generation esgotaram. Crédito e estoque continuam reservados. Saídas só humanas: reprocessar a nota (volta a `INVOICING`) ou Cancellation. Ver [[0019-invoice-failed-holds-until-human-action]].
+_Avoid_: INVOICING (retry ainda ativo), COMPENSATION_FAILED (falhou a compensação, não a nota)
+
+**Cancellation**:
+Ação humana que desiste de um Order em `PENDING`, `AWAITING_MASTER_DATA`, `PROCESSING`, `INVOICING` ou `INVOICE_FAILED`. Não existe em `COMPLETED`. Se crédito ou estoque já foram reservados, dispara Compensating Action e termina em `CANCELLED`; senão vai a `CANCELLED` direto. Falha da nota sozinha nunca cancela. Ver [[0019-invoice-failed-holds-until-human-action]].
+_Avoid_: rollback, undo, cancelamento de item (Order Item não cancela sozinho)
+
 **Order Item**:
-Uma linha de produto dentro de um Order — SKU, quantidade, preço unitário, dado de produto. O Order é o aggregate root; Order Item nunca existe fora de um Order, e a concorrência (`version`) é do Order inteiro, não por item — ver [[0001-optimistic-locking-for-order-writes]].
+Uma linha de produto dentro de um Order — SKU, quantidade, preço unitário, dado de produto. SKU é único no Order: linhas da planilha com o mesmo SKU no mesmo SourceOrderReference somam a quantidade num único Order Item. O Order é o aggregate root; Order Item nunca existe fora de um Order, e a concorrência (`version`) é do Order inteiro, não por item — ver [[0001-optimistic-locking-for-order-writes]].
 _Avoid_: line item (isolado, sem o resto do vocabulário em inglês do contexto), produto do pedido
 
 **Fulfillment Status**:
 Situação de atendimento de um Order Item — `FULFILLED` ou `NOT_FULFILLED`, com motivo quando não atendido (hoje só `PRODUCT_INACTIVE`; falta de estoque **não** entra aqui, porque cancela o Order em vez de excluir o item). A Stock Reservation cobre exatamente o conjunto `FULFILLED`, e é atômica sobre ele. Existe porque um pedido pode ser atendido em parte: produto descontinuado não recusa o pedido inteiro, deixa aquele item de fora — ver [[0012-partial-fulfillment-for-inactive-products]]. É a única situação que vive no item; status de processamento é do Order.
-_Avoid_: status do item (ambíguo com o status do Order), item cancelado, item rejeitado (rejeição é da linha da planilha no import, coisa diferente — ver Rejected Order Row)
+_Avoid_: status do item (ambíguo com o status do Order), item cancelado, item rejeitado (rejeição é da linha da planilha no import, coisa diferente — ver ImportBatchRowError)
 
 **Order Total**:
 Soma de `unit_price × quantity` dos Order Items `FULFILLED`. **Derivado, nunca armazenado** — item pode virar `NOT_FULFILLED` depois da precificação, inclusive no faturamento, e um total gravado ficaria errado em silêncio nesses casos. É o valor que a Credit Validation submete e o que a fatura cobra — ver [[0013-order-total-derived-and-price-frozen-at-enrichment]].
@@ -61,13 +69,13 @@ Um upload de planilha de import em massa — existe como entidade própria (`PEN
 _Avoid_: import job (genérico, "batch" já é o termo canônico aqui), upload (é só o gatilho, não a entidade)
 
 **Import Fingerprint**:
-Hash do conteúdo do arquivo de import, calculado no upload. Arquivo já importado é recusado na hora, sem criar Import Batch. Camada distinta do Source Order Number: o fingerprint pega o reenvio do mesmo arquivo, o Source Order Number pega o pedido repetido entre arquivos diferentes.
+Hash do conteúdo do arquivo de import, calculado no upload. Arquivo já importado é recusado na hora, sem criar Import Batch. Camada distinta do SourceOrderReference: o fingerprint pega o reenvio do mesmo arquivo, o SourceOrderReference pega o pedido repetido entre arquivos diferentes.
 _Avoid_: checksum, hash do arquivo (sem qualificar o papel), deduplicação de upload
 
-**Rejected Order Row**:
-Linha da planilha recusada na validação do import, registrada como erro do Import Batch enquanto as demais linhas seguem; o Import Batch fecha em `COMPLETED_WITH_ERRORS`. Só o que dá pra verificar dentro do próprio arquivo produz uma Rejected Order Row — dado obrigatório ausente, duplicata de Source Order Number. Existência de cliente ou de produto **não** é verificada aqui: o import nunca consulta outro contexto, e dado de cadastro faltando é resolvido pela Processing Step, não recusando a linha — ver [[0011-async-only-enrichment-await-master-data]].
-_Avoid_: linha inválida (genérico), erro de import, pedido rejeitado (ambíguo com falha de Processing Step)
+**ImportBatchRowError**:
+Linha da planilha recusada na validação do import, registrada no Import Batch enquanto as demais linhas seguem; o Import Batch fecha em `COMPLETED_WITH_ERRORS`. Só o que dá pra verificar dentro do próprio arquivo produz um ImportBatchRowError — dado obrigatório ausente, duplicata de SourceOrderReference. Existência de cliente ou de produto **não** é verificada aqui: o import nunca consulta outro contexto, e dado de cadastro faltando é resolvido pela Processing Step, não recusando a linha — ver [[0011-async-only-enrichment-await-master-data]].
+_Avoid_: Rejected Order Row, linha inválida, erro de import, pedido rejeitado (ambíguo com falha de Processing Step)
 
-**Source Order Number**:
-Chave natural do Order no sistema de origem (`source_system_code` + `source_order_number`) — não é o `id` interno do Order, é o identificador que o sistema que gerou o pedido usa. Par único, usado pra detectar duplicata entre lotes de import.
-_Avoid_: order number (sem qualificar "source", ambíguo com o `id` interno)
+**SourceOrderReference**:
+Chave natural do Order no sistema de origem — par `(sourceSystemCode, sourceOrderNumber)`. Não é o `id` interno. No mesmo lote, linhas com o mesmo par viram um único Order (cabeçalho repetido por item; se o cabeçalho divergir, vale o da primeira linha). Duplicata só contra lotes já importados, e vira ImportBatchRowError.
+_Avoid_: Source Order Number (era o nome do par; no código `sourceOrderNumber` é só um dos dois campos), order number
