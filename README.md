@@ -15,7 +15,7 @@ Linguagem dos **9 bounded contexts**: resolvida — cada um tem `app/<contexto>/
 
 Implementação começou em `app/`: Gradle Kotlin DSL (`app/build.gradle.kts`, `app/gradlew`), módulos `:order` e `:notifications` (Kotlin + Gherkin). Os outros 7 contextos ainda são spec/ADR/glossário — sem `src/`.
 
-Não há `Dockerfile` nem `compose.yaml`. Sem isso o quality gate deste repo não tem container; **não** use `./gradlew` no host como substituto (regra global container-first).
+Não há `Dockerfile` nem `compose.yaml`, então não existe comando de build documentado a partir deste repositório. **Build e teste rodam na máquina do Developer**, que é a única com JVM, Gradle e Node — ver [`docs/agents/multi-session.md`](docs/agents/multi-session.md).
 
 ## Como clonar
 
@@ -35,7 +35,7 @@ node doc/transcripts/build.mjs
 
 Lê `doc/transcripts/transcript-1.txt`, escreve `doc/transcripts/uncle-bob-software-fundamentals-ai.md`.
 
-O Gradle em `app/` existe (`:order`, `:notifications`). Sem compose, não há comando de teste/build documentado daqui.
+O Gradle em `app/` existe (`:order`, `:notifications`), e quem o executa é a sessão Developer, no MacBook. A sessão Architect, no `llm-server`, não tem ferramenta de build — então nada que venha dela sobre código em execução está verificado.
 
 ## Por onde começar a ler
 

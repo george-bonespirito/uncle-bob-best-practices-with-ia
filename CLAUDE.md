@@ -10,7 +10,17 @@ Sem relação entre si. A árvore do git não deixa isso óbvio.
 ## Retomar `app/`
 
 1. [`app/docs/specs/order-processing-prd.md`](app/docs/specs/order-processing-prd.md) seção 7 ("Partes cinzentas") — tracker vivo.
-2. [`app/CONTEXT-MAP.md`](app/CONTEXT-MAP.md) — contextos e relações. Glossário: `app/<contexto>/CONTEXT.md` quando existir. Ausência: seguir calado (não criar na frente). Detalhe em `docs/agents/domain.md`.
+2. [`app/CONTEXT-MAP.md`](app/CONTEXT-MAP.md) — os 9 contextos e suas relações. Cada um tem glossário em `app/<contexto>/CONTEXT.md`: linguagem ubíqua e termos a evitar, incluindo os que **não existem** e estão listados para não serem assumidos. Detalhe em `docs/agents/domain.md`.
+
+```
+app/
+├── CONTEXT-MAP.md                            os 9 contextos e suas relações
+├── docs/{adr,specs,diagrams}/                decisões e specs de sistema inteiro; C4 em .drawio.svg editáveis
+├── <contexto>/CONTEXT.md                     glossário do contexto
+├── <contexto>/docs/adr/                      decisões locais ao contexto
+├── <contexto>/src/test/resources/features/   Gherkin de aceitação
+└── settings.gradle.kts                       módulos com código hoje: :order e :notifications
+```
 
 ## Convenções que o modelo não deriva
 
