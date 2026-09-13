@@ -15,7 +15,7 @@ Repo-specific context for OpenCode sessions. If docs conflict with code, trust c
 
 Several agent sessions work this project at once, across two repos and two CLIs, coordinated over the mcp-bus barramento. **Before joining the bus, opening a branch or a PR, read [`docs/agents/multi-session.md`](docs/agents/multi-session.md)** — it is the single source for who is who, who decides what, and how to work in parallel without collisions.
 
-Two rules from it that catch a session out immediately: your `session_id` and role are **assigned by George** in that file, not chosen by you; and a PR opens as `WIP:` and is merged by George alone.
+Two rules from it that catch a session out immediately: your working identity is `role` + `kind` + `repo`, and you **receive** it — you never compute or choose it; and a PR opens as `WIP:` and is merged by George alone.
 
 ## Only executable command
 
@@ -110,7 +110,7 @@ If a session has no token, ask the user to perform the write. An unreachable tra
 
 ## Cross-session infra relay
 
-This session (application design) coordinates with a separate infra session (`bonespirito-cluster-k3s-infra`) over **mcp-bus**, an MCP barramento at `https://mcp.lab.bonespirito.com/mcp` (this session's id there: `app-design`). Rules:
+This session (application design) coordinates with a separate infra session (`bonespirito-cluster-k3s-infra`) over **mcp-bus**, an MCP barramento at `https://mcp.lab.bonespirito.com/mcp`. After ADR-022, `join` without a guessed `session_id` (`kind=claude-code`, `role=ARCHITECT`, `repo=uncle-bob-best-practices-with-ia`) and use the id the server returns. Rules:
 - **This session is the user's single point of contact** — never tell the user to talk to infra directly
 - Delivery is pull: `poll` at session start **and** before closing any infra-consequential decision (ADR, PR, spec)
 - Frame proposals as coming from the user ("George pediu X")

@@ -34,4 +34,19 @@ Nome atribuído torna renomeação silenciosa impossível. Uma sessão que não 
 
 Não resolve o defeito irmão: como todas as sessões empurram para o Codeberg com o mesmo token, todo PR sai como `torgge`. A mitigação é convenção (dono no nome da branch e no corpo do PR), está em `docs/agents/multi-session.md`, e é deliberadamente mais fraca — identidade real por sessão no Codeberg exigiria multiplicar credenciais, o que tem custo próprio.
 
-Status: accepted
+Status: superseded in part by 0003
+
+---
+
+## Revisão — 2026-09-13
+
+A [ADR 0003](0003-identidade-de-sessao-e-role-mais-repo.md) substitui o **mecanismo** desta decisão, não o princípio.
+
+O que sai: George mantendo à mão uma tabela de `session_id` e role. O `session_id` passa a ser gerado por sessão, e a identidade de trabalho vira `role` + `kind` + `repo`.
+
+**O que fica, e é o que importava aqui: a sessão não decide a própria autoridade.** Antes isso era garantido por uma tabela escrita antes; agora é garantido pelo servidor propor a role por regra e um humano confirmar na tela do Allow.
+
+Os dois incidentes que motivaram esta ADR continuam cobertos pela 0003. A caixa órfã não se repete porque nome deixou de ser endereço — endereçar é por `(role, repo)`. E a cláusula "não existir outro Architect", que uma sessão chegou a avaliar sozinha, passa a ser avaliada pelo servidor, que é quem tem o roster.
+
+Esta ADR continua valendo **até o cutover** do mecanismo novo.
+
