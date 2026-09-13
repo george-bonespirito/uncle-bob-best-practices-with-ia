@@ -10,7 +10,7 @@ How the engineering skills should consume this repo's domain documentation when 
 - **`app/docs/adr/`** — system-wide decisions (span multiple contexts/microservices).
 - **`app/<context>/docs/adr/`** — context-scoped decisions (e.g. `app/order/docs/adr/`, `app/notifications/docs/adr/`).
 
-If any of these files don't exist for a given context, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved. As of this writing, only the `order` context has a `CONTEXT.md` — the other 8 microservices (Customers, Products, Pricing, Stock, Contabil, Invoice, Route, Notifications) are named in `app/CONTEXT-MAP.md` but don't have one yet.
+If any of these files don't exist for a given context, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved. All nine contexts in `app/CONTEXT-MAP.md` now have a `CONTEXT.md`.
 
 ## File structure
 
@@ -24,11 +24,9 @@ If any of these files don't exist for a given context, **proceed silently**. Don
     │   ├── adr/                ← system-wide decisions
     │   ├── diagrams/           ← C4 diagrams, project roadmap
     │   └── specs/              ← PRD, integration specs
-    ├── order/
-    │   ├── CONTEXT.md
-    │   └── docs/adr/           ← Order-context decisions
-    └── notifications/
-        └── docs/adr/           ← Notifications-context decisions (no CONTEXT.md yet)
+    └── <context>/
+        ├── CONTEXT.md
+        └── docs/adr/           ← context-scoped decisions (when any exist)
 ```
 
 ## Use the glossary's vocabulary

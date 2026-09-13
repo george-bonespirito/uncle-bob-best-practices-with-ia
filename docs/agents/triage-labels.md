@@ -12,6 +12,6 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
-These labels may not exist on the Codeberg repo yet. **Check before the first triage pass** — list the repo's labels (`GET /repos/torgge/uncle-bob-best-practices-with-ia/labels`, or the Codeberg web UI under *Issues → Labels*) rather than assuming either way; the repo is private, so an unauthenticated check returns `404`, not an empty list.
+These labels may not exist on the Codeberg repo yet. **Check before the first triage pass** — list the repo's labels (`GET /repos/torgge/uncle-bob-best-practices-with-ia/labels`, or the Codeberg web UI under *Issues → Labels*) rather than assuming either way. Anonymous GET works (repo is public); an empty list means the labels are missing, not that the repo is unreachable.
 
 Create any that are missing with `POST .../labels`, or through the Codeberg web UI when the session has no token (see `issue-tracker.md`). Don't rely on a label being auto-created as a side effect of applying it: that behaviour varies across Gitea/Forgejo versions and silently does nothing on some.
