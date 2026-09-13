@@ -15,7 +15,7 @@ Repo-specific context for OpenCode sessions. If docs conflict with code, trust c
 
 Several agent sessions work this project at once, across two repos and two CLIs, coordinated over the mcp-bus barramento. **Before joining the bus, opening a branch or a PR, read [`docs/agents/multi-session.md`](docs/agents/multi-session.md)** — it is the single source for who is who, who decides what, and how to work in parallel without collisions.
 
-Two rules from it that catch a session out immediately: your `session_id` and role are **assigned by George** in that file, not chosen by you; and a PR opens as `WIP:` and is merged by George alone.
+Two rules from it that catch a session out immediately: your working identity is `role` + `kind` + `repo`, and you **receive** it — you never compute or choose it; and a PR opens as `WIP:` and is merged by George alone.
 
 ## Only executable command
 

@@ -6,26 +6,65 @@ Este arquivo é a política do time: quem é quem, quem decide o quê, e como tr
 
 ## Identidade e autoridade
 
-**George atribui `session_id` e role. A sessão lê e obedece — nunca infere, nunca escolhe por conta.**
+**Uma sessão é caracterizada por três coisas: `role`, `kind` e `repo`.**
 
-O barramento aceita qualquer `session_id` autodeclarado, então nada no servidor impede uma sessão de se batizar. A regra é nossa, e existe por dois motivos concretos:
+- **`role`** — a função: `Architect`, `DEVOPS`, `Developer`, `QA`, `Product`. É o que define autoridade.
+- **`kind`** — o client em que a sessão roda: `claude-code`, `opencode`, `grok`, e o que vier. Não define autoridade; desempata Manager.
+- **`repo`** — o repositório em que ela trabalha. Escopa a role.
 
-- Uma sessão que escolhe o próprio nome pode, sem querer, assumir a caixa de outra. Já aconteceu: uma janela entrou como `infra`, a caixa ficou órfã, e mensagens endereçadas à infra real ficaram paradas onde ninguém lia.
-- Uma sessão que escolhe a própria role escolhe a própria autoridade. Também já aconteceu: uma sessão preencheu com uma regra condicional de quatro cláusulas o vazio de "qual é a minha role", avaliando ela mesma se tinha direito a ser Architect.
+**O `session_id` não identifica ninguém.** Ele é gerado por sessão, único, e existe só como handle interno — se muda a cada vez que a sessão abre, não serve de endereço. **Endereçar é por `(role, repo)`.**
 
-Nome atribuído torna a renomeação silenciosa impossível: quem não está no registro não tem nome válido, e isso aparece.
+### A sessão não escolhe a própria autoridade — e continua não escolhendo
 
-### Registro
+A [ADR 0003](../adr/0003-identidade-dinamica-por-role-kind-repo.md) trocou o **mecanismo**, não o princípio. Antes, George mantinha uma tabela de `session_id` e role à mão. Agora o servidor **propõe** a role por regra e um humano **confirma** na tela do `/authorize`.
 
-| `session_id` | CLI | Role | Repo | Observação |
-|---|---|---|---|---|
-| `app-design` | claude-code | Architect | `uncle-bob-best-practices-with-ia` | host `llm-server`; **sem ferramenta de desenvolvimento** — arquitetura e estrutura, não execução |
-| `app-opencode` | opencode | Developer | `uncle-bob-best-practices-with-ia` | janela aberta de propósito por George |
-| `infra` | claude-code | DEVOPS | `bonespirito-cluster-k3s-infra` | primária do lado de infra; endereço de DM |
-| `opencode` | opencode | DEVOPS | `bonespirito-cluster-k3s-infra` | secundária, defere à `infra` |
-| `mac-architect` | claude-code | Developer | `uncle-bob-best-practices-with-ia` | MacBook de George; **é onde o código roda** — tem JVM, Gradle e Node |
+O motivo da regra antiga continua inteiro: sessão que escolhe a própria role escolhe a própria autoridade, e isso já aconteceu aqui — uma sessão preencheu o vazio de "qual é a minha role" com uma regra condicional de quatro cláusulas que ela mesma avaliava.
 
-Ao entrar no barramento, a sessão usa **exatamente** a linha dela: mesmo `session_id`, mesma role. Se o registro e a realidade divergirem, o registro manda — refaça o `join`.
+### Exclusividade
+
+| Role | Escopo | Quantos |
+|---|---|---|
+| `Architect` | **squad inteiro** | **uma só** — é quem delega às outras roles |
+| `Product` | por repo | uma por repositório |
+| `DEVOPS` | por repo | vários, com Manager |
+| `Developer` | por repo | vários |
+| `QA` | por repo | vários |
+
+### Dois eixos de delegação, e confundi-los custa caro
+
+- **Architect delega _entre_ roles.** É o eixo vertical: dirige o que cada role faz.
+- **Manager delega _dentro_ de uma role plural.** É o eixo horizontal: entre dois DEVOPS, quem atende. Determinado por `kind` — `claude-code` acima de `opencode`.
+
+> **Lacuna conhecida:** a ordem de `kind` só conhece `claude-code` e `opencode`. Um terceiro client na mesma role não tem precedência definida — a saída é perguntar a George, não inventar critério.
+
+### Architect delega o quê; DEVOPS decide o como
+
+Architect dirige trabalho e prioridade, inclusive no repositório de infra. **Implementação, ordem técnica e o que entra naquele repo continuam decisão do Manager de DEVOPS.**
+
+A divisão não é cortesia: várias decisões boas vieram da infra recusando ou corrigindo proposta da Architect — a reversão do critério de labels indexados saiu de ela trazer a contagem em vez do argumento, e a máscara de PII em vez do descarte saiu de ela aplicar à segurança um argumento que a Architect tinha usado para log. Quem opera o cluster vê o que quem não o opera não vê.
+
+### Como uma sessão entra
+
+1. O humano escolhe o **repo** na tela do Allow, entre os conhecidos — o pedido OAuth não tem campo para o client declará-lo, e os clients não inventam um. A sessão declara depois, no `join`, o repo derivado do `git remote`; **divergência entre os dois é erro**, e é daí que vem o único valor real da declaração: detectar que o humano clicou no repo errado.
+2. O servidor **propõe a role** pela regra: a primeira sessão recebe a role exclusiva mais alta ainda vaga (`Architect`, depois `Product`); as seguintes recebem `Developer`.
+3. A regra considera a **máquina**, não só a ordem de chegada. A exceção é chaveada por `repo + host`, porque capacidade decide o que uma sessão pode afirmar: no `uncle-bob-best-practices-with-ia`, sessão no `llm-server` pode ser `Architect`; sessão no MacBook entra como `Developer`, porque é onde o código roda e é a única que pode dizer que algo passa.
+4. A tela do `/authorize` mostra role + repo para um humano **confirmar** — e oferece **tomar** uma role exclusiva ocupada por sessão morta, explicitamente, com registro em auditoria.
+5. A participação **expira junto com o grant**. Não renovou, saiu do squad.
+
+> **Repo é declarado, não provado.** O servidor não tem como verificar de onde a sessão roda; quem tem credencial pode declarar qualquer repositório. A defesa é o humano na tela do Allow, e a tela é LAN-only. A conferência entre o que o humano escolheu e o que o client derivou não prova nada — pega engano, não má-fé.
+
+### Enquanto o mecanismo não existe
+
+A política acima **vale a partir do cutover**. Até lá, o barramento ainda exige `session_id` pré-cadastrado no Vault, e o registro abaixo continua sendo a fonte — tirá-lo antes deixaria dias sem fonte de verdade nenhuma.
+
+| `session_id` | kind | Role | Repo |
+|---|---|---|---|
+| `app-design` | claude-code | Architect | `uncle-bob-best-practices-with-ia` |
+| `mac-architect` | claude-code | Developer | `uncle-bob-best-practices-with-ia` |
+| `infra` | claude-code | DEVOPS | `bonespirito-cluster-k3s-infra` |
+| `opencode` | opencode | DEVOPS | `bonespirito-cluster-k3s-infra` |
+
+A convenção de branch usa o `session_id` no segundo segmento (`docs/app-design/slug`). Com id gerado isso deixa de identificar dono — **trocar para a role no cutover**, não antes.
 
 ### A divisão segue a máquina, não a preferência
 
@@ -40,7 +79,7 @@ Daí a atribuição de papéis:
 
 O `session_id` `mac-architect` **fica como está**, apesar de a role ter mudado. Renomear custaria uma credencial nova emitida pela infra e deixaria o nome antigo para trás — o problema de sessão órfã que a ADR-0002 existe para evitar. O nome é rótulo; a autoridade está na role, e a role está nesta tabela.
 
-### Sessão que não está no registro
+### Sessão que não está no registro (até o cutover)
 
 Entra no squad **sem role**, se anuncia e pede registro a George.
 
@@ -62,8 +101,6 @@ Isso **aposenta o desempate por antiguidade** que este documento trazia antes (m
 George sobrepõe a atribuição quando quiser — a regra existe para o caso comum.
 
 O termo **driver/navigator**, usado aqui antes, saiu: Manager e Executor dizem a mesma coisa com a autoridade explícita, e "driver" sugeria rodízio, que não é o caso.
-
-> Hoje há **um único Architect** (`app-design`). A regra de pareamento acima só volta a valer se George registrar duas sessões na mesma role de novo.
 
 ### Sair do squad não é desconectar o cliente
 
