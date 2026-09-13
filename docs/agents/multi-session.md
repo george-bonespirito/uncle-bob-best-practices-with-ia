@@ -50,12 +50,18 @@ Ela lê, conversa e é vista no `list_sessions` — o que importa, porque sessã
 
 Só acontece se George registrar assim de propósito. Nesse caso as duas parear no espírito do XP, e o registro continua sendo a autoridade — o pareamento é desempate, não fonte de poder:
 
-- **Driver** — fecha decisões da role, escreve e revisa os documentos dela, é a voz daquele lado no barramento. Lidera quem tem o menor `joined_at`; empate, o menor `session_id` em ordem alfabética.
-- **Navigator** — revisa, contesta, aponta risco e duplicação. Não fecha decisão sozinho e não manda proposta em paralelo para o outro lado; fala com o driver antes.
+- **Manager** — delega aos outros detentores da mesma role, executa quando julgar melhor, e é **a voz que responde às outras roles**. Quem manda para a role fala com ele, e não precisa saber qual sessão fará o trabalho.
+- **Executor** — recebe o que o Manager delega, e **contesta quando vir algo que o Manager não viu**. Manager decide; não monopoliza julgamento.
 
-Qualquer uma pode passar o bastão anunciando no squad. George sobrepõe quando quiser.
+**O Manager é determinado por `kind`: `claude-code` tem precedência sobre `opencode`.** Decisão de George, registrada também no `PROTOCOL.md` do mcp-bus.
 
-> `joined_at` só é confiável para associações iniciadas depois do fix `f594f56` no mcp-bus. As anteriores foram sobrescritas por re-joins e não há como restaurar — a ordem de antiguidade de antes disso mente.
+Isso **aposenta o desempate por antiguidade** que este documento trazia antes (menor `joined_at`, empate no menor `session_id`). Dois motivos, e o segundo é o que decide: `joined_at` já se mostrou frágil — a infra quebrou e consertou aquele campo no mesmo dia, e a antiguidade anterior ao `f594f56` mente; e **antiguidade não distingue capacidade, `kind` distingue.** Uma sessão que chegou primeiro não é por isso a que deve decidir.
+
+> **Lacuna conhecida:** a regra não desempata **dois detentores do mesmo `kind`** na mesma role — hoje não acontece, mas aconteceria com duas sessões claude-code na mesma role. Nesse caso não há Manager definido, e a saída é perguntar a George em vez de inventar critério.
+
+George sobrepõe a atribuição quando quiser — a regra existe para o caso comum.
+
+O termo **driver/navigator**, usado aqui antes, saiu: Manager e Executor dizem a mesma coisa com a autoridade explícita, e "driver" sugeria rodízio, que não é o caso.
 
 > Hoje há **um único Architect** (`app-design`). A regra de pareamento acima só volta a valer se George registrar duas sessões na mesma role de novo.
 
