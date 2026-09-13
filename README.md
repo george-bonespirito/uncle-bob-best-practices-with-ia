@@ -9,11 +9,13 @@ Contém **duas coisas sem relação entre si**. Vale saber disso antes de navega
 | `doc/transcripts/` | Transcrição de uma entrevista com Uncle Bob sobre fundamentos de software na era de IA, mais um script Node que limpa o texto bruto da ASR |
 | `app/` | Design de um sistema de referência de supply chain — **Order Processing** — nascido daquela entrevista |
 
-## Estado atual: não há código de aplicação
+## Estado atual
 
-`app/` é **documentação e especificação**, não implementação. Nenhum serviço foi escrito ainda: não há `build.gradle.kts`, não há Kotlin, não há `Dockerfile`. Os arquivos `.feature` são contratos de aceitação escritos antes do código, sem nada por trás deles ainda.
+Linguagem dos **9 bounded contexts**: resolvida — cada um tem `app/<contexto>/CONTEXT.md`. Item 5 da seção 7 do PRD, fechado.
 
-Isso é deliberado — o projeto está na fase de design (spec antes de implementação), e a decisão de limitar esta rodada a design está registrada no PRD.
+Implementação começou em `app/`: Gradle Kotlin DSL (`app/build.gradle.kts`, `app/gradlew`), módulos `:order` e `:notifications` (Kotlin + Gherkin). Os outros 7 contextos ainda são spec/ADR/glossário — sem `src/`.
+
+Não há `Dockerfile` nem `compose.yaml`, então não existe comando de build documentado a partir deste repositório. **Build e teste rodam na máquina do Developer**, que é a única com JVM, Gradle e Node — ver [`docs/agents/multi-session.md`](docs/agents/multi-session.md).
 
 ## Como clonar
 
@@ -25,41 +27,31 @@ git clone https://codeberg.org/torgge/uncle-bob-best-practices-with-ia.git
 git clone git@codeberg.org:torgge/uncle-bob-best-practices-with-ia.git
 ```
 
-Não há dependências para instalar. O único comando executável do repositório é:
+Pipeline de transcrição — sem `package.json`, só `node:fs`, idempotente:
 
 ```bash
 node doc/transcripts/build.mjs
 ```
 
-Ele lê `doc/transcripts/transcript-1.txt` e escreve `doc/transcripts/uncle-bob-software-fundamentals-ai.md`. Sem `package.json`, sem npm install — só `node:fs`. É idempotente.
+Lê `doc/transcripts/transcript-1.txt`, escreve `doc/transcripts/uncle-bob-software-fundamentals-ai.md`.
+
+O Gradle em `app/` existe (`:order`, `:notifications`), e quem o executa é a sessão Developer, no MacBook. A sessão Architect, no `llm-server`, não tem ferramenta de build — então nada que venha dela sobre código em execução está verificado.
 
 ## Por onde começar a ler
 
 1. **[`app/docs/specs/order-processing-prd.md`](app/docs/specs/order-processing-prd.md)** — o documento central. A **seção 7 ("Partes cinzentas")** é o tracker vivo do que está resolvido e do que falta; é o melhor lugar para retomar o trabalho depois de um tempo longe.
 2. **[`app/CONTEXT-MAP.md`](app/CONTEXT-MAP.md)** — os 9 bounded contexts do sistema e como se relacionam.
-3. **`app/<contexto>/CONTEXT.md`** — o glossário de cada contexto: a linguagem ubíqua, com os termos a evitar. Só é escrito quando a linguagem daquele contexto foi de fato resolvida.
-
-### O que já tem linguagem resolvida
-
-Dois dos nove contextos: **[Order](app/order/CONTEXT.md)** (o agregado central, o import em massa, a concorrência) e **[Customers](app/customers/CONTEXT.md)**. **Products é o próximo da fila.** Os demais — Pricing, Stock, Contabil, Invoice, Route, Notifications — ainda não têm `CONTEXT.md`, e isso é rastreado como item #5 da seção 7 do PRD.
+3. **`app/<contexto>/CONTEXT.md`** — glossário do contexto (linguagem ubíqua, termos a evitar). Os 9 existem; mapa em `CONTEXT-MAP.md`.
 
 ## Como o design é organizado
 
 ```
 app/
-├── CONTEXT-MAP.md              mapa dos 9 contextos e suas relações
-├── docs/
-│   ├── adr/                    decisões que valem para o sistema inteiro
-│   ├── specs/                  PRD e contratos de integração
-│   └── diagrams/               C4 (L1/L2/L3), roadmap, pipeline CI/CD — .drawio.svg editáveis
-├── order/
-│   ├── CONTEXT.md              glossário do contexto
-│   ├── docs/adr/               decisões locais a este contexto
-│   └── src/test/resources/features/    Gherkin de aceitação
-├── customers/CONTEXT.md
-└── notifications/
-    ├── docs/adr/
-    └── src/test/resources/features/
+├── CONTEXT-MAP.md              mapa dos 9 contextos
+├── docs/{adr,specs,diagrams}/  sistema inteiro; C4 em .drawio.svg
+├── <contexto>/CONTEXT.md       glossário — os 9
+├── order/                      código Gradle + Gherkin + ADRs locais
+└── notifications/              código Gradle + Gherkin + ADRs locais
 ```
 
 Decisão que vale para o sistema todo vai em `app/docs/adr/`; decisão local a um contexto vai em `app/<contexto>/docs/adr/`. Os diagramas são SVG com o XML do draw.io embutido — abrem no navegador e continuam editáveis no draw.io.
