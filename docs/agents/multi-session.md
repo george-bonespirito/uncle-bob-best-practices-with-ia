@@ -49,11 +49,15 @@ O registro fixo de `session_id` **acabou**. Squad foi zerado.
 
 1. `opencode mcp auth mcp-bus` ou Claude `/mcp` autenticar.
 2. George clica **Allow** — só "Autorizar este cliente?".
-3. `join(squad=bonespirito, kind=…, role=…, repo=…)` — **sem chutar `session_id`**.
-4. Usar o `session_id` que o `join` devolveu em todo `peek`/`send`/`ack`.
+3. `join(squad=bonespirito, kind=…, role=…, repo=…)` — **sem `session_id`**. O servidor emite, no formato `{kind}-{ROLE}-{n}` (ex.: `claude-code-ARCHITECT-1`).
+4. Usar o id emitido em todo `peek`/`send`/`ack` — **e em todo `join` seguinte**.
 5. Trabalho de infra: `to: DEVOPS` (fila). DM: o id emitido, lido em `list_sessions`.
 
 Quem entra neste repo: `llm-server` → `role=ARCHITECT`; MacBook que compila → `role=DEVELOPER`. A sessão **declara** isso no `join`; o Allow não escolhe.
+
+> **Só a primeira chamada pode omitir `session_id`.** A partir da segunda, declare o id emitido — omitir de novo devolve `session_id must not be empty`. "Omitir" é modo de uma chamada, não permanente. Achado da sessão de infra ao testar o oposto; a mensagem de erro não distingue "você esqueceu" de "você já tem um".
+
+**Se você perdeu o seu id**, o jeito que funciona hoje é torto: faça um `peek` com um `session_id` qualquer e leia a recusa — `your credential is X` diz quem você é. Funciona porque a conferência de identidade responde com o dono da credencial, mas é **efeito colateral, não contrato**. Um `whoami` foi pedido à infra; até existir, quem automatizar isso está parseando mensagem de erro.
 
 Headless (`claude -p`): token no Vault, rótulo operacional; o `join` também emite o nome.
 
@@ -61,16 +65,16 @@ Headless (`claude -p`): token no Vault, rótulo operacional; o `join` também em
 
 ### A divisão segue a máquina, não a preferência
 
-`llm-server` **não tem** JVM, Gradle, Node nem Docker — verificado, os quatro ausentes. `app-design` mora ali, então não pode compilar, rodar teste, executar `./gradlew check` nem `node doc/transcripts/build.mjs`. O MacBook tem tudo isso.
+`llm-server` **não tem** JVM, Gradle, Node nem Docker — verificado, os quatro ausentes. A sessão que roda ali não compila, não roda teste, não executa `./gradlew check` nem `node doc/transcripts/build.mjs`. O MacBook tem tudo isso.
 
-Daí a atribuição de papéis:
+Daí a atribuição de papéis — por **máquina**, não por nome de sessão, que hoje é emitido e muda:
 
-- **`app-design` é o Architect** — decide e escreve arquitetura, ADR, glossário, `.feature`, estrutura de projeto. Trabalha em documento, que é o que a máquina dele permite.
-- **`mac-architect` é o Developer** — implementa, compila, roda a pirâmide de qualidade e é a única sessão que pode afirmar que algo passa.
+- **`ARCHITECT` roda no `llm-server`** — decide e escreve arquitetura, ADR, glossário, `.feature`, estrutura de projeto. Trabalha em documento, que é o que a máquina permite.
+- **`DEVELOPER` roda no MacBook** — implementa, compila, roda a pirâmide de qualidade e é a única que pode afirmar que algo passa.
 
-**Consequência que precisa estar escrita:** nada que venha do `app-design` sobre código em execução é verificado. Ele pode raciocinar sobre o código e não pode testá-lo. Só o Developer fecha "funciona", e só com saída verde na mão — a mesma regra que já valia para build neste projeto.
+**Consequência que precisa estar escrita:** nada que venha do `ARCHITECT` sobre código em execução é verificado. Ele pode raciocinar sobre o código e não pode testá-lo. Só o Developer fecha "funciona", e só com saída verde na mão — a mesma regra que já valia para build neste projeto.
 
-O `session_id` `mac-architect` **fica como está**, apesar de a role ter mudado. Renomear custaria uma credencial nova emitida pela infra e deixaria o nome antigo para trás — o problema de sessão órfã que a ADR-0002 existe para evitar. O nome é rótulo; a autoridade está na role, e a role está nesta tabela.
+Esta seção já foi sobre nomes de sessão — qual nome mantinha qual role, e o custo de renomear. **Isso deixou de existir com o id emitido:** o nome não é escolhido, não é estável entre sessões, e não carrega autoridade. A autoridade está na role, e a role é declarada no `join` e conferida contra a credencial.
 
 ### Sessão que não está no registro (até o cutover)
 
@@ -111,9 +115,11 @@ Duas sessões já editaram o mesmo arquivo no mesmo dia sem saber uma da outra. 
 **Branch:** tipo primeiro, sessão no segundo segmento.
 
 ```
-docs/app-design/protocolo-multi-sessao
-feature/app-opencode/bulk-import
+docs/architect/protocolo-multi-sessao
+feature/developer/bulk-import
 ```
+
+O segundo segmento é a **role**, não o `session_id` — que hoje é emitido e muda entre sessões, o que o tornaria inútil como marca de dono.
 
 Preserva o filtro por tipo que já existe e mostra o dono em `git branch -r`, antes de qualquer PR ser aberto.
 
