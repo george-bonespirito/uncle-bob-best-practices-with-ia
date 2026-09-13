@@ -6,7 +6,7 @@ user-invocable: false
 
 # infra-relay
 
-> **Quem é quem, quem decide o quê:** [`docs/agents/multi-session.md`](../../../docs/agents/multi-session.md) e [`docs/adr/0003`](../../../docs/adr/0003-identidade-de-sessao-e-role-mais-repo.md) (a [0002](../../../docs/adr/0002-george-atribui-identidade-e-role-das-sessoes.md) continua válida até o cutover). Identidade de trabalho é `role` + `kind` + `repo`; esta skill não repete o registro. O contrato do servidor é [`mcp-bus/PROTOCOL.md`](https://codeberg.org/torgge/bonespirito-cluster-k3s-infra/src/branch/main/mcp-bus/PROTOCOL.md), no repo de infra — revisado e aprovado, e leitura anônima (o repo é público). Esta skill não repete o que está lá: se as duas divergirem, o PROTOCOL.md manda, e a divergência é bug de uma das duas.
+> **Quem é quem, quem decide o quê:** [`docs/agents/multi-session.md`](../../../docs/agents/multi-session.md) e [`docs/adr/0003`](../../../docs/adr/0003-identidade-de-sessao-e-role-mais-repo.md). Mecanismo do barramento: ADR-022 da infra / [`PROTOCOL.md`](https://codeberg.org/torgge/bonespirito-cluster-k3s-infra/src/branch/main/mcp-bus/PROTOCOL.md) (também `https://mcp.lab.bonespirito.com/docs`). Se esta skill e o PROTOCOL divergirem, o PROTOCOL manda.
 
 The user (George) works this project across several agent sessions, split by repo: the application side (`uncle-bob-best-practices-with-ia`, this one) and the infra side (`bonespirito-cluster-k3s-infra`, cluster k3s). Full history: memory `reference-two-agent-collaboration`.
 
@@ -18,13 +18,13 @@ The two sides talk over **mcp-bus** — an MCP server (Streamable HTTP) at `http
 
 **Which CLI is on the other side changes; do not hard-code it.** The infra side has run under OpenCode and under Claude Code, sometimes both at once in different windows. When a Claude Code infra session is up, `SendMessage` works again as a second channel alongside the bus — `ListAgents` shows whether one is live right now. The bus is the channel that works either way, which is why it stays the primary one.
 
-Registered in this project at **local scope** (`~/.claude.json`, not in Git — the repo is public). Token lives at `~/.config/mcp-bus/token` (mode 600) and in Vault at `secret/bonespirito/mcp-bus`. Never commit it, never put it in `.mcp.json`.
+Registered in this project at **local scope** (`~/.claude.json`, not in Git — the repo is public). Interactive: `claude` `/mcp` autenticar — o CLI guarda o grant OAuth; Allow é só "este cliente?". Headless: `~/.config/mcp-bus/token.<rótulo>` (modo 600). Never commit it, never put it in `.mcp.json`.
 
 **The grouping key is the squad, not the repo.** Every tool takes `squad`; `repo` is optional metadata saying which repository a session lives in or a message is about. An earlier version of this skill documented `repo` as the key and a `list_repos()` tool — both are gone.
 
 Tools:
 
-- `join(squad, session_id, kind, role?, repo?)`
+- `join(squad, kind, role, repo?)` — omit `session_id` on first join; use the id in the response. Roles are UPPERCASE (`ARCHITECT`, `DEVELOPER`, `DEVOPS`).
 - `list_sessions(squad)`
 - `list_squads()`
 - `send(squad, from, to, body, repo?)` — `to` is **required**
@@ -33,13 +33,13 @@ Tools:
 - `peek(squad, session_id, include_role_queue?)` / `ack(squad, session_id, ids)` — added by infra ADR-013
 - `claim(squad, session_id, ids)` — added by infra ADR-016
 
-**Do not hard-code this session's identity.** Until the cutover described in [ADR 0003](../../../docs/adr/0003-identidade-de-sessao-e-role-mais-repo.md), the registry in `multi-session.md` still names it; after the cutover the `session_id` is generated per session and the working identity — `role`, `kind`, `repo` — comes from the OAuth grant. Either way, read `list_sessions` rather than assuming.
+**Do not hard-code this session's identity.** Cutover (infra ADR-022) already happened: `join` without guessing `session_id`, then use what the server returned. Read `list_sessions`. Work for infra: `to: DEVOPS`.
 
 ### More than one holder of a role
 
 Manager and Executor, with the tiebreak by `kind` — and `Architect` is unique across the whole squad, so the pairing never applies to it. The rule lives in [`multi-session.md`](../../../docs/agents/multi-session.md); it is not repeated here, and the version this file used to carry (tiebreak by `joined_at`) is retired.
 
-**The session does not compute its own role.** It receives one — today from the registry, after the cutover from the grant, with a human confirming on the Allow screen either way. An earlier version of this file told the session to evaluate four conditions itself and decide; that is exactly what [ADR 0002](../../../docs/adr/0002-george-atribui-identidade-e-role-das-sessoes.md) was written to stop.
+**The session does not invent a role.** This repo: `llm-server` joins as `ARCHITECT`; the compiling MacBook as `DEVELOPER`. Allow does not pick the role — `join` declares it. An earlier version of this file told the session to evaluate four conditions itself; that is what [ADR 0002](../../../docs/adr/0002-george-atribui-identidade-e-role-das-sessoes.md) was written to stop.
 
 `poll` on a session_id that never joined returns an error asking for `join` — it does not deliver. `join` delivers the full backlog for the squad, deliberately: a message sent before joining is not lost.
 

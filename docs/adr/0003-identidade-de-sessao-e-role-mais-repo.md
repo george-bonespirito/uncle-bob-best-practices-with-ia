@@ -78,4 +78,18 @@ Repo escopa autoridade; squad delimita quem se fala. Um squad por repositório c
 
 **Quando vale.** A política entra em vigor no cutover. Até lá o registro de `session_id` continua em `docs/agents/multi-session.md` — ADR não é changelog de deploy, e tirar a fonte antes de existir substituta deixaria dias sem nenhuma.
 
-Status: accepted
+## Mecanismo fechado pela infra (ADR-022, 2026-09-13)
+
+O *como* era desta ADR deixar para a infra. Ela fechou diferente de vários "agora" acima. O que **entrou no cluster**:
+
+- Allow pergunta só **"Autorizar este cliente?"** — sem Role, sem repo, sem `session_id`.
+- `join(kind, role, repo)` **declara** a intenção; o servidor emite `{kind}-{ROLE}-{n}` e liga no grant.
+- `to` continua `session_id | ALL | Role`. **Não** `(role, repo)`.
+- Roles em CAIXA-ALTA (`ARCHITECT`, `DEVELOPER`, `PRODUCT-MANAGER`, `QA`, …). Grafia antiga recusa.
+- Sem expiração de membro com o grant.
+
+O que **não** entrou: servidor propõe a role; humano confirma role na tela; endereçamento `(role, repo)`; `Product` por repo (no barramento a exclusiva é `PRODUCT-MANAGER` no squad).
+
+Contrato: `mcp-bus/PROTOCOL.md` no repo de infra (também em `https://mcp.lab.bonespirito.com/docs`). Se este arquivo e o PROTOCOL divergirem no mecanismo, o PROTOCOL manda.
+
+Status: accepted, mecanismo emenda pela ADR-022 da infra

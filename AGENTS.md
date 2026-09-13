@@ -110,7 +110,7 @@ If a session has no token, ask the user to perform the write. An unreachable tra
 
 ## Cross-session infra relay
 
-This session (application design) coordinates with a separate infra session (`bonespirito-cluster-k3s-infra`) over **mcp-bus**, an MCP barramento at `https://mcp.lab.bonespirito.com/mcp` (this session's id there: `app-design`). Rules:
+This session (application design) coordinates with a separate infra session (`bonespirito-cluster-k3s-infra`) over **mcp-bus**, an MCP barramento at `https://mcp.lab.bonespirito.com/mcp`. After ADR-022, `join` without a guessed `session_id` (`kind=claude-code`, `role=ARCHITECT`, `repo=uncle-bob-best-practices-with-ia`) and use the id the server returns. Rules:
 - **This session is the user's single point of contact** — never tell the user to talk to infra directly
 - Delivery is pull: `poll` at session start **and** before closing any infra-consequential decision (ADR, PR, spec)
 - Frame proposals as coming from the user ("George pediu X")
