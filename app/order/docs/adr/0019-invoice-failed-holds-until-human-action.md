@@ -20,6 +20,25 @@ A 0016 recusou retry indefinido em `INVOICING`. Esta ADR concorda com o teto; di
 
 `INVOICING` significa retry ainda ativo. `INVOICE_FAILED` significa teto atingido, intervenção humana obrigatória. Misturar os dois faria o status mentir — parecer “ainda emitindo” quando o Orkes já desistiu.
 
+## Interação com a liberação parcial da ADR 0018
+
+A Invoice Generation, **antes** de emitir, libera o estoque dos itens que caíram na reverificação de Product Status e converte o Credit Hold pelo valor faturado ([ADR 0018](0018-order-shrinkage-at-invoice.md)). A ordem importa quando a emissão falha depois disso.
+
+Estado de um Order em `INVOICE_FAILED`, sendo preciso: **estoque parcialmente liberado, Credit Hold intacto.** A conversão acontece *na* emissão, então emissão que não aconteceu não converteu nada — e `release-credit-hold` continua funcionando sobre um hold que ainda é hold.
+
+Duas consequências para quem implementar o reprocessamento:
+
+- **O conjunto de itens é recalculado, não reaproveitado.** Entre a tentativa que falhou e o reprocessamento, outro produto pode ter sido desativado.
+- **A liberação não pode acontecer duas vezes.** A idempotência da 0018 cobre — liberar item já liberado é no-op —, mas só porque ela existe. Sem ela, o reprocessamento devolveria estoque que já tinha voltado.
+
+## `INVOICE_FAILED` não notifica o cliente
+
+A [ADR notifications/0004](../../../notifications/docs/adr/0004-notifiable-statuses-and-idempotency.md) define Notifiable Status como `PROCESSING`, `CANCELLED` e `COMPLETED` — escrita quando o Order tinha oito status. Com o nono, a regra precisa dizer de que lado ele cai.
+
+`INVOICE_FAILED` **não notifica**, pelo mesmo critério dos outros internos: o cliente não pode agir sobre um retry de nota que esgotou, e avisá-lo expõe falha interna como se fosse informação.
+
+Uma consequência que vale estar escrita: **Cancellation humana termina em `CANCELLED`, que é notificável.** O cliente recebe "pedido cancelado" sem distinção entre cancelamento por falha e desistência nossa. É aceitável — o template é genérico por desenho —, mas é decisão, não consequência.
+
 ## Alternativas rejeitadas
 
 - **Cancelar e compensar ao esgotar o retry** (a 0016). Rejeitada porque descarta um pedido já reservado por um problema de emissão, não de crédito ou estoque.

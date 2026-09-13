@@ -46,7 +46,7 @@ _Avoid_: line item (isolado, sem o resto do vocabulário em inglês do contexto)
 
 **Fulfillment Status**:
 Situação de atendimento de um Order Item — `FULFILLED` ou `NOT_FULFILLED`, com motivo quando não atendido (hoje só `PRODUCT_INACTIVE`; falta de estoque **não** entra aqui, porque cancela o Order em vez de excluir o item). A Stock Reservation cobre exatamente o conjunto `FULFILLED`, e é atômica sobre ele. Existe porque um pedido pode ser atendido em parte: produto descontinuado não recusa o pedido inteiro, deixa aquele item de fora — ver [[0012-partial-fulfillment-for-inactive-products]]. É a única situação que vive no item; status de processamento é do Order.
-_Avoid_: status do item (ambíguo com o status do Order), item cancelado, item rejeitado (rejeição é da linha da planilha no import, coisa diferente — ver ImportBatchRowError)
+_Avoid_: status do item (ambíguo com o status do Order), item cancelado, item rejeitado (rejeição é da linha da planilha no import, coisa diferente — ver Rejected Order Row)
 
 **Order Total**:
 Soma de `unit_price × quantity` dos Order Items `FULFILLED`. **Derivado, nunca armazenado** — item pode virar `NOT_FULFILLED` depois da precificação, inclusive no faturamento, e um total gravado ficaria errado em silêncio nesses casos. É o valor que a Credit Validation submete e o que a fatura cobra — ver [[0013-order-total-derived-and-price-frozen-at-enrichment]].
@@ -72,9 +72,9 @@ _Avoid_: import job (genérico, "batch" já é o termo canônico aqui), upload (
 Hash do conteúdo do arquivo de import, calculado no upload. Arquivo já importado é recusado na hora, sem criar Import Batch. Camada distinta do SourceOrderReference: o fingerprint pega o reenvio do mesmo arquivo, o SourceOrderReference pega o pedido repetido entre arquivos diferentes.
 _Avoid_: checksum, hash do arquivo (sem qualificar o papel), deduplicação de upload
 
-**ImportBatchRowError**:
-Linha da planilha recusada na validação do import, registrada no Import Batch enquanto as demais linhas seguem; o Import Batch fecha em `COMPLETED_WITH_ERRORS`. Só o que dá pra verificar dentro do próprio arquivo produz um ImportBatchRowError — dado obrigatório ausente, duplicata de SourceOrderReference. Existência de cliente ou de produto **não** é verificada aqui: o import nunca consulta outro contexto, e dado de cadastro faltando é resolvido pela Processing Step, não recusando a linha — ver [[0011-async-only-enrichment-await-master-data]].
-_Avoid_: Rejected Order Row, linha inválida, erro de import, pedido rejeitado (ambíguo com falha de Processing Step)
+**Rejected Order Row**:
+Linha da planilha recusada na validação do import, registrada no Import Batch enquanto as demais linhas seguem; o Import Batch fecha em `COMPLETED_WITH_ERRORS`. Só o que dá pra verificar dentro do próprio arquivo produz uma Rejected Order Row — dado obrigatório ausente, duplicata de Source Order Reference. No código de hoje a classe se chama `ImportBatchRowError`; o nome de negócio é este, e alinhar o código é tarefa do Developer, que é quem tem como compilar. Existência de cliente ou de produto **não** é verificada aqui: o import nunca consulta outro contexto, e dado de cadastro faltando é resolvido pela Processing Step, não recusando a linha — ver [[0011-async-only-enrichment-await-master-data]].
+_Avoid_: linha inválida, erro de import, pedido rejeitado (ambíguo com falha de Processing Step), ImportBatchRowError como termo de negócio (é o nome da classe, não do conceito)
 
 **SourceOrderReference**:
 Chave natural do Order no sistema de origem — par `(sourceSystemCode, sourceOrderNumber)`. Não é o `id` interno. No mesmo lote, linhas com o mesmo par viram um único Order (cabeçalho repetido por item; se o cabeçalho divergir, vale o da primeira linha). Duplicata só contra lotes já importados, e vira ImportBatchRowError.
