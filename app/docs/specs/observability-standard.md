@@ -75,6 +75,7 @@ Log serve para operação e diagnóstico. Se a resposta a "onde isso fica regist
 | Taxa de conflito de `version` | Concorrência do enriquecimento mal dimensionada — as 3 tasks da Data Enrichment brigando pelo mesmo agregado | Rever paralelismo do fork-join; conflito alto significa retrabalho, não erro |
 | Orders em `AWAITING_MASTER_DATA` | Fila de trabalho **manual** de ops que ninguém está atendendo | Cadastrar o dado faltante; crescimento sustentado significa que o import recebe planilha com cadastro inexistente |
 | Orders em `COMPENSATION_FAILED` | Fila manual de mesma natureza, e mais grave: crédito ou estoque presos sem dono | Intervenção manual; nenhum destes se resolve sozinho |
+| Orders em `INVOICE_FAILED` | Fila manual com **crédito e estoque presos** — o retry da nota esgotou e ninguém reprocessou nem cancelou | Reprocessar a Invoice ou cancelar o Order. É a fila mais cara das três: cada item nela segura recurso que outro pedido poderia usar |
 | Profundidade dos tópicos `.dlt` | Mensagem que nenhum retry salvou — resultado de Processing Step ou notificação perdidos | Resolução manual, e investigar a causa comum se concentrar num tópico |
 | Taxa de item `NOT_FULFILLED` | **Catálogo sujo**, não problema de pedido: SKUs `INACTIVE` continuam chegando nas planilhas de import | Corrigir na origem, com quem emite a planilha |
 

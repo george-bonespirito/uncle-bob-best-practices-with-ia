@@ -38,3 +38,8 @@ Com o atendimento parcial ([ADR order/0012](../../order/docs/adr/0012-partial-fu
 
 O resto desta ADR não muda.
 
+---
+
+## Revisão — 2026-09-12 (terceira nota do dia)
+
+Invoice Generation que esgota retry **não** dispara compensação. O item “nunca precisa de compensação” continua no caminho automático: falha da Invoice não cancela o Order. O ciclo de status do item 4 ganha `INVOICE_FAILED` ([ADR order/0019](../../order/docs/adr/0019-invoice-failed-holds-until-human-action.md)): retries esgotam, crédito e estoque ficam presos, e Compensating Action só entra se houver Cancellation humana — inclusive a partir de `PROCESSING`, não só de `INVOICE_FAILED`.

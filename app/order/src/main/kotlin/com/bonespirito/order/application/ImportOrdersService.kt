@@ -15,6 +15,7 @@ import com.bonespirito.order.domain.UploadedFile
 import com.bonespirito.order.domain.policy.GroupedOrder
 import com.bonespirito.order.domain.policy.ParsedRow
 import com.bonespirito.order.domain.policy.groupIntoOrders
+import com.bonespirito.order.domain.policy.mergeQuantitiesBySku
 import com.bonespirito.order.domain.policy.partitionByDuplicate
 import org.springframework.stereotype.Service
 import java.io.InputStream
@@ -99,8 +100,8 @@ class ImportOrdersService(
             customerId = customerId,
             orderCreatedAt = orderCreatedAt,
         )
-        items.forEach { item ->
-            order.items.add(OrderItem(order = order, sku = item.row.sku, quantity = item.row.quantity))
+        mergeQuantitiesBySku(items).forEach { (sku, quantity) ->
+            order.items.add(OrderItem(order = order, sku = sku, quantity = quantity))
         }
         return order
     }

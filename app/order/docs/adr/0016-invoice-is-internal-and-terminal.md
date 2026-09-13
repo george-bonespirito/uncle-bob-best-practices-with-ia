@@ -35,3 +35,7 @@ Cancelar reabriria tudo que a emissão congela: o Product Status reverificado, o
 Isso é funcionalidade nova — com decisão de negócio sobre devolução, crédito ao cliente e reversão de estoque —, não um detalhe deste contexto.
 
 Status: accepted
+
+## Revisão (2026-09-12) — falha da Invoice não cancela automaticamente
+
+A seção **Falha cancela e compensa** fica superseded by [ADR order/0019](./0019-invoice-failed-holds-until-human-action.md): retry automático até um teto, depois `INVOICE_FAILED` com crédito e estoque presos, e só Cancellation humana dispara compensação. Documento interno, numeração com buracos e Invoice emitida terminal **não mudam**.

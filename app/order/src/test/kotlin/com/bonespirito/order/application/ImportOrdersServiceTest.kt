@@ -139,6 +139,29 @@ class ImportOrdersServiceTest {
     }
 
     @Test
+    fun `mesmo SKU no mesmo pedido vira um Order Item com a quantidade somada`() {
+        val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-4"))
+        val saved = slot<Order>()
+        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.save(any()) } returns batch
+        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { orders.findAll() } returns emptyList()
+        every { orders.save(capture(saved)) } answers { saved.captured }
+        every { parser.parse(any()) } returns listOf(
+            ParsedRow.Valid(numberedRow(1, "PO-001", "SKU-1", 2)),
+            ParsedRow.Valid(numberedRow(2, "PO-001", "SKU-1", 3)),
+        )
+
+        service.startImport("orders.csv", "header\nrow1\nrow2".byteInputStream())
+        executor.shutdown()
+        executor.awaitTermination(1, TimeUnit.SECONDS)
+
+        assertThat(saved.captured.items).hasSize(1)
+        assertThat(saved.captured.items.single().sku).isEqualTo("SKU-1")
+        assertThat(saved.captured.items.single().quantity).isEqualTo(5)
+    }
+
+    @Test
     fun `findStatus devolve null quando o batch nao existe`() {
         every { importBatches.findById(any()) } returns Optional.empty()
 

@@ -41,3 +41,14 @@ Nada de itens, valores ou dados do cliente. Isso é a mesma regra de PII do [pad
 O cliente já sabe o que pediu; a mensagem existe para dizer em que pé está.
 
 Status: accepted
+
+---
+
+## Revisão — 2026-09-13
+
+O Order ganhou um nono status, `INVOICE_FAILED` ([ADR order/0019](../../../order/docs/adr/0019-invoice-failed-holds-until-human-action.md)). Esta ADR foi escrita com oito, então a lista de Notifiable Status precisava dizer de que lado ele cai.
+
+**Não notifica**, pelo mesmo critério dos demais internos: o cliente não pode agir sobre um retry de nota esgotado, e avisá-lo expõe falha interna como informação.
+
+A decisão desta ADR não muda. O que este caso mostra é que a lista de Notifiable Status **não é auto-evidente**: cada status novo do Order exige dizer aqui de que lado ele cai, senão quem implementar decide sozinho.
+
