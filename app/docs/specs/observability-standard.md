@@ -65,6 +65,29 @@ A retenção é **D-1** — verificado em produção: janela de 30–48h atrás 
 
 Log serve para operação e diagnóstico. Se a resposta a "onde isso fica registrado?" for só o Loki, o desenho está errado e a correção é no domínio, não na retenção.
 
+## Métricas de domínio
+
+**Uma métrica só existe se alguém faz algo diferente ao vê-la.** Cada uma abaixo carrega, na definição, o problema que denuncia e a ação esperada — sem isso vira painel que ninguém abre.
+
+| Métrica | O que denuncia | Ação |
+|---|---|---|
+| Profundidade da fila `order_update_event` | Consumo mais lento que a produção — resultados de Processing Step chegando mais rápido do que o MS Order aplica | Escalar instâncias do MS Order, ou investigar contenção no `SKIP LOCKED` |
+| Taxa de conflito de `version` | Concorrência do enriquecimento mal dimensionada — as 3 tasks da Data Enrichment brigando pelo mesmo agregado | Rever paralelismo do fork-join; conflito alto significa retrabalho, não erro |
+| Orders em `AWAITING_MASTER_DATA` | Fila de trabalho **manual** de ops que ninguém está atendendo | Cadastrar o dado faltante; crescimento sustentado significa que o import recebe planilha com cadastro inexistente |
+| Orders em `COMPENSATION_FAILED` | Fila manual de mesma natureza, e mais grave: crédito ou estoque presos sem dono | Intervenção manual; nenhum destes se resolve sozinho |
+| Profundidade dos tópicos `.dlt` | Mensagem que nenhum retry salvou — resultado de Processing Step ou notificação perdidos | Resolução manual, e investigar a causa comum se concentrar num tópico |
+| Taxa de item `NOT_FULFILLED` | **Catálogo sujo**, não problema de pedido: SKUs `INACTIVE` continuam chegando nas planilhas de import | Corrigir na origem, com quem emite a planilha |
+
+A última é a menos óbvia e a que mais economiza tempo: atendimento parcial é silencioso por desenho — o pedido segue, ninguém é avisado do detalhe, e sem esta métrica o problema aparece pelo cliente reclamando.
+
+### Cardinalidade em métrica
+
+**Nenhuma métrica leva `order_id`, `sku` ou `customer_id` como label.** Status do Order (8 valores) e nome do tópico são aceitáveis; identificador de entidade não — o mesmo erro de cardinalidade que derrubou o label de pod na coleta de log, agora em métrica, onde cada série vive no tempo.
+
+### O que não é métrica de domínio
+
+Pedidos por dia, faturamento, ticket médio. É BI: outro consumidor, outro ciclo de vida, e arrastaria agregação de negócio e PII para um canal que este padrão acabou de restringir.
+
 ## Trace
 
 Amostragem **100%** enquanto o volume não doer. Amostrar antes de medir é otimizar o que ainda não se conhece.
