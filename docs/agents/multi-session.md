@@ -65,6 +65,15 @@ O termo **driver/navigator**, usado aqui antes, saiu: Manager e Executor dizem a
 
 > Hoje há **um único Architect** (`app-design`). A regra de pareamento acima só volta a valer se George registrar duas sessões na mesma role de novo.
 
+### Sair do squad não é desconectar o cliente
+
+São coisas diferentes e já foram confundidas uma vez, com custo real:
+
+- **Desconectar o cliente MCP** encerra a conexão da sessão. A caixa dela continua no barramento, o cursor é preservado, e tudo que chegar espera por ela.
+- **`leave`** remove o membro. A caixa deixa de existir, o cursor se perde, e quem voltar entra como novo — recebendo o backlog inteiro. Enquanto está fora, a sessão **não recebe nada e não é avisada disso**: um `send` dela devolve `pending_for`, indistinguível de "o alvo ainda não entrou".
+
+Um pedido de "desconecte as sessões X" é ambíguo entre os dois. Quem executar deve confirmar qual dos dois antes de agir, e **anunciar no squad** depois de remover alguém — a auditoria registra quem removeu, mas ninguém olha auditoria sem motivo.
+
 ## Trabalho paralelo
 
 Duas sessões já editaram o mesmo arquivo no mesmo dia sem saber uma da outra. As regras abaixo existem para tornar isso visível cedo.
