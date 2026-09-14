@@ -76,6 +76,14 @@ _Avoid_: checksum, hash do arquivo (sem qualificar o papel), deduplicação de u
 Linha da planilha recusada na validação do import, registrada no Import Batch enquanto as demais linhas seguem; o Import Batch fecha em `COMPLETED_WITH_ERRORS`. Só o que dá pra verificar dentro do próprio arquivo produz uma Rejected Order Row — dado obrigatório ausente, duplicata de Source Order Reference. No código de hoje a classe se chama `ImportBatchRowError`; o nome de negócio é este, e alinhar o código é tarefa do Developer, que é quem tem como compilar. Existência de cliente ou de produto **não** é verificada aqui: o import nunca consulta outro contexto, e dado de cadastro faltando é resolvido pela Processing Step, não recusando a linha — ver [[0011-async-only-enrichment-await-master-data]].
 _Avoid_: linha inválida, erro de import, pedido rejeitado (ambíguo com falha de Processing Step), ImportBatchRowError como termo de negócio (é o nome da classe, não do conceito)
 
+**Dead Letter Topic (DLT)**:
+Tópico Kafka `.dlt` companheiro de cada um dos 7 tópicos de resultado (ex: `order.stock-validation.result.dlt`), destino de uma mensagem que MS Order falhou ao **consumir/processar** — schema inválido, `orderId` inexistente — depois de esgotado o retry curto de falha transitória. Distinto da falha de **task** do Conductor (essa aciona a Saga de compensação, ver Compensating Action); o DLT é sobre a mensagem nem conseguir ser processada. Resolução é manual, fora de escopo automatizar. Ver [[0005-dead-letter-topics-for-order-consumer-failures]] (ADR raiz), [[0007-dlt-exception-classifier]].
+_Avoid_: fila de erro (genérico), tópico de erro (não nomeia o mecanismo Kafka específico)
+
+**DLT Envelope**:
+Schema Avro único e genérico, compartilhado pelos 7 Dead Letter Topics — carrega a mensagem original (`payloadOriginal`, opaco) mais metadados de erro (`failureReason`, `failedAt`, `attempt`), nunca o shape tipado do payload de origem. Uma subject só no Apicurio (`RecordNameStrategy`), não uma por tópico. Ver [[0020-dlt-envelope-schema-and-apicurio-ci-check]].
+_Avoid_: schema de DLT (ambíguo — sugere um schema por tópico, que foi deliberadamente rejeitado), envelope de erro (isolado, sem o resto do vocabulário deste contexto)
+
 **SourceOrderReference**:
 Chave natural do Order no sistema de origem — par `(sourceSystemCode, sourceOrderNumber)`. Não é o `id` interno. No mesmo lote, linhas com o mesmo par viram um único Order (cabeçalho repetido por item; se o cabeçalho divergir, vale o da primeira linha). Duplicata só contra lotes já importados, e vira ImportBatchRowError.
 _Avoid_: Source Order Number (era o nome do par; no código `sourceOrderNumber` é só um dos dois campos), order number
