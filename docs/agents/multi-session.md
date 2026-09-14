@@ -30,6 +30,8 @@ O motivo da regra antiga continua inteiro: sessão que escolhe a própria role e
 | `DEVELOPER` | squad | vários |
 | `QA` | squad | vários |
 
+> **O que garante a exclusividade:** o servidor recusa `join` de uma segunda sessão pedindo role exclusiva enquanto a primeira continuar **membro vivo** — não é só regra do time, é checagem no barramento (confirmado no código da infra, `lib.rs:763-776`, teste `role_exclusiva_recusa_o_segundo`). A role se libera quando quem a detém sai (`leave`), nunca antes de isso. **O sufixo numérico do id emitido (`-1`, `-2`, ...) não indica quantas sessões estão simultaneamente na role** — é um contador de nomes por `(kind, ROLE)` que nunca reusa buraco. Achado real: uma sessão `ARCHITECT` conseguiu `join` e recebeu `claude-code-ARCHITECT-2` porque a `claude-code-ARCHITECT-1` já tinha saído do squad; se ela ainda estivesse dentro, o join teria sido recusado, não renomeado.
+
 ### Dois eixos de delegação, e confundi-los custa caro
 
 - **Architect delega _entre_ roles.** É o eixo vertical: dirige o que cada role faz.

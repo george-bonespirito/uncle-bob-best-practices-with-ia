@@ -92,4 +92,12 @@ O que **não** entrou: servidor propõe a role; humano confirma role na tela; en
 
 Contrato: `mcp-bus/PROTOCOL.md` no repo de infra (também em `https://mcp.lab.bonespirito.com/docs`). Se este arquivo e o PROTOCOL divergirem no mecanismo, o PROTOCOL manda.
 
+## Revisão (2026-09-14): exclusividade de ARCHITECT é mecanismo, não só convenção
+
+Confirmado no código do barramento (`lib.rs:763-776`, com teste `role_exclusiva_recusa_o_segundo`): o servidor recusa o `join` de uma segunda sessão pedindo role exclusiva enquanto a primeira continuar **membro vivo** do squad.
+
+Uma sessão `ARCHITECT` testou o caso e concluiu o oposto: deu `join` como `ARCHITECT` enquanto outra sessão `ARCHITECT` constava no histórico do squad, e o servidor aceitou — emitindo `claude-code-ARCHITECT-2`. A causa não foi ausência de exclusividade: a `-1` já tinha saído do squad (`leave`) antes desse join. **O sufixo numérico do id emitido é um contador monotônico por `(kind, ROLE)` que nunca reusa buraco — propriedade de nome, não de cardinalidade.** Se a sessão anterior ainda estivesse dentro, o join teria sido recusado, não renomeado.
+
+Consequência prática: a role exclusiva se libera quando quem a detém sai do squad (`leave`), não por decisão de quem entra depois. Mecanismo confirmado pela infra; contrato formal continua em `mcp-bus/PROTOCOL.md`.
+
 Status: accepted, mecanismo emenda pela ADR-022 da infra
