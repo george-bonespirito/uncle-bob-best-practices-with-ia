@@ -51,5 +51,5 @@ Ver diagrama de sequência do fluxo compensatório em `app/docs/specs/order-proc
 
 ## Testing
 
-- **Contract test:** schema Avro de cada tópico versionado no Apicurio Registry; mecanismo de validação em CI (ex: schema compatibility check antes de publish) não desenhado ainda.
+- **Contract test:** schema Avro de cada tópico versionado no Apicurio Registry. Mecanismo de validação em CI desenhado só pro lado que MS Order publica (os 7 tópicos `.dlt`, via envelope genérico único — ver [ADR order/0020](../../order/docs/adr/0020-dlt-envelope-schema-and-apicurio-ci-check.md)); os 7 tópicos de resultado listados acima são consumidos via `GenericRecord` resolvido em runtime contra o Apicurio, sem `.avsc` local nem CI aplicável do lado de MS Order — a validação de schema deles é responsabilidade de CI das 7 MS de dado (fora deste repo, gray area).
 - **Integration test:** fora de escopo desta rodada — como testar a Saga ponta a ponta continua em aberto (gray area #9 do mapa de partes cinzentas).

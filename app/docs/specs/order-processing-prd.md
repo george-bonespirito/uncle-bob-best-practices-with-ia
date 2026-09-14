@@ -471,7 +471,7 @@ Lista viva, atualizada a cada rodada de grilling. Status: ✅ resolvido, 🟡 pa
 9. ✅ K3s — cluster real, Postgres/Kafka/Apicurio já rodando via ArgoCD; dev/test loop mira o cluster; deploy de produção via ArgoCD; WhatsApp sem exposição pública — ADR raiz 0006. Orkes no cluster ainda não existe (ação de infra, não gap de design).
 10. ⬜ Teste de integração da Saga ponta a ponta (além do Gherkin de aceitação) — não desenhado.
 11. ✅ Dead letter — tópico `.dlt` por tópico de resultado, retry curto pra falha transitória, direto ao DLT pra falha permanente, resolução manual — ADR raiz 0005.
-12. ⬜ Mecanismo de contract test do schema Avro em CI (compatibility check antes de publish) — não desenhado.
+12. ✅ Contract test do schema Avro em CI — escopo é só os 7 tópicos DLT (CDC e tópicos de resultado ficam fora, ver ADR); envelope genérico único, `RecordNameStrategy`, `BACKWARD`, script no Woodpecker parametrizado por `CI_PIPELINE_EVENT` (PR = dry-run, push em `main` = publish) — ADR order/0020.
 13. ✅ Contrato REST do bulk import — `POST /imports/orders` (202) + `GET /imports/orders/{id}` (status/polling) — ADR order/0004, seção "Contrato REST".
 14. ✅ Classificador de exceção pro DLT — default permanente, só `TransientDataAccessException`+timeout Apicurio são transitórios — ADR order/0007.
 15. ✅ Mutation testing revisitado contra o domínio real — 5 áreas de decisão, threshold 80% — ADR order/0005.
