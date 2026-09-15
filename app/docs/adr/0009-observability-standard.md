@@ -1,4 +1,4 @@
-# Padrão de observabilidade: quarentena em vez de recusa, dois labels, PII proibida por nome
+# Padrão de observabilidade: quarentena em vez de recusa, três labels, PII proibida por nome
 
 A infra entregou log agregado (Alloy + Loki, retenção D-1, ADR-019 do repositório de infra) e apontou o que aquilo **não** entrega: padrão. O Loki é armazenamento; o contrato são as convenções do OTel, e quem as impõe é o Collector no caminho. Trocar Loki por Elastic ou ClickHouse não mudaria nada — o que decide é o que as aplicações são obrigadas a emitir.
 
@@ -69,4 +69,16 @@ Seis métricas. Três vinham do tracker (fila `order_update_event`, conflito de 
 **Cardinalidade:** nenhuma métrica leva `order_id`, `sku` ou `customer_id` como label. É o mesmo erro que derrubou o label de pod na coleta de log, agora em métrica, onde cada série persiste no tempo.
 
 **Métrica de negócio fica de fora** — pedidos por dia, faturamento, ticket médio. É BI, com outro consumidor e outro ciclo de vida, e arrastaria agregação e PII para um canal que este padrão restringiu de propósito.
+
+---
+
+## Revisão — 2026-09-15: a sétima métrica, e o título que tinha ficado na versão errada
+
+Duas correções de registro. Nenhuma decisão nova.
+
+**A spec tem sete métricas; a revisão acima diz seis.** `Orders em INVOICE_FAILED` entrou na tabela de [`observability-standard.md`](../specs/observability-standard.md) junto com o status que a [ADR order/0019](../../order/docs/adr/0019-invoice-failed-holds-until-human-action.md) criou, e não passou por aqui — a spec andou à frente do registro. A métrica é o mesmo critério aplicado ao caso novo, e por isso é admitida em vez de removida: é fila manual com **crédito e estoque presos**, e a ação é reprocessar a Invoice ou cancelar o Order. Fica registrada agora.
+
+O padrão que isto expõe é o de sempre por aqui: decisão que entra direto na spec sem passar pela ADR deixa as duas discordando, e quem lê a ADR conta seis.
+
+**O título desta ADR dizia "dois labels".** A seção "Três labels indexados" narra que a primeira versão errou e conclui que ficam os três; o título tinha ficado na versão anterior à correção. Ajustado para "três labels" — a narrativa do erro continua no corpo, que é onde ela vale, e esta nota registra o ajuste em vez de deixá-lo silencioso.
 
