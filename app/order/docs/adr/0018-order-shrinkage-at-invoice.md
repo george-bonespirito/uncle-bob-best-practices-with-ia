@@ -12,7 +12,7 @@ Decidimos que **a task compensatória passa a aceitar uma lista de itens**, e a 
 
 Rejeitada a alternativa de liberar tudo e re-reservar o conjunto final: abriria uma janela em que o estoque fica livre e outro pedido o toma — perderíamos uma venda já aprovada, por um conserto.
 
-Isto **muda o contrato** de `release-stock-reservation`, que a [ADR raiz 0002](../../docs/adr/0002-compensating-flow-for-order-processing.md) define. A idempotência continua valendo e ganha escopo: liberar um item já liberado é no-op, como liberar uma reserva já liberada.
+Isto **muda o contrato** de `release-stock-reservation`, que a [ADR raiz 0002](../../../docs/adr/0002-compensating-flow-for-order-processing.md) define. A idempotência continua valendo e ganha escopo: liberar um item já liberado é no-op, como liberar uma reserva já liberada.
 
 ## Crédito: converter o valor faturado e liberar a diferença
 
@@ -31,7 +31,7 @@ Recalcular acrescentaria uma quarta responsabilidade à Invoice Generation, que 
 
 ## Cliente é avisado, sem detalhe de item
 
-Item não atendido não muda status do Order, e o Notifications dispara por transição de status ([ADR notifications/0004](../../notifications/docs/adr/0004-notifiable-statuses-and-idempotency.md)).
+Item não atendido não muda status do Order, e o Notifications dispara por transição de status ([ADR notifications/0004](../../../notifications/docs/adr/0004-notifiable-statuses-and-idempotency.md)).
 
 Decidimos um **template variante do `COMPLETED`**: "pedido concluído, com itens não atendidos", sem listar quais. Notificação nova por item contrariaria a regra de disparo por transição e traria detalhe de item para o WhatsApp, contra a decisão de conteúdo mínimo.
 
@@ -51,3 +51,13 @@ O que faltava não era decisão, era alguém percorrer o caso.
 `COMPENSATION_FAILED` na liberação parcial: se a liberação dos itens que caíram falhar, o pedido não pode nem faturar nem seguir. Cai no mesmo estado terminal manual de sempre, e automatizar sua resolução segue fora de escopo.
 
 Status: accepted
+
+---
+
+## Revisão — 2026-09-15: o template variante precisava de um dado que não existia
+
+Esta ADR decidiu o **template variante** do `COMPLETED` na seção "Cliente é avisado, sem detalhe de item". A decisão continua valendo; o que faltava era como o Notifications saberia escolhê-lo.
+
+Ele lê só a linha CDC de `orders` ([ADR notifications/0001](../../../notifications/docs/adr/0001-consume-order-cdc-topic.md)), e `fulfillment_status` é coluna de `order_items` — então o bit não chegava ao consumidor. Decidido em [ADR notifications/0005](../../../notifications/docs/adr/0005-partial-completion-template-selection.md): `orders` ganha a coluna **`partially_fulfilled`**, escrita pela Invoice Generation **na mesma transação da transição terminal**, e é dela que o template sai.
+
+A obrigação que isto cria deste lado é a coluna e sua escrita; o modelo de dados do PRD foi atualizado junto. Esta ADR decidiu algo do lado do Notifications sem registrá-lo lá, e foi por isso que o dado faltou — o padrão a evitar é decidir sobre outro contexto sem que a decisão chegue no glossário dele.

@@ -26,6 +26,14 @@ _Avoid_: deduplicação por offset (o offset muda no reprocessamento), id do eve
 Modelo pré-aprovado pela Meta, exigência do canal e não escolha nossa ([ADR notifications/0002](docs/adr/0002-meta-cloud-api-for-whatsapp.md)). Carrega **número do pedido e status, e nada além disso**.
 _Avoid_: mensagem livre, texto customizado, corpo dinâmico
 
+**Partial Completion Template**:
+Variante do template de `COMPLETED`, usada quando o pedido terminou com itens não atendidos: diz que houve item não atendido, **sem dizer qual** ([ADR notifications/0005](docs/adr/0005-partial-completion-template-selection.md)). É escolha de template dentro da mesma Status Transition — conclusão parcial gera **uma** Notification, e a Notification Key não muda.
+_Avoid_: notificação de item, segunda mensagem, status `COMPLETED_PARTIAL` (não existe — o pedido está `COMPLETED` como qualquer outro)
+
+**Partial Fulfillment Flag**:
+`partially_fulfilled`, coluna da linha de `orders` escrita pela Invoice Generation na transição terminal, e o único dado pelo qual este contexto sabe que deve usar o Partial Completion Template. `fulfillment_status` é de `order_items`, tabela que este contexto **não consome** ([ADR notifications/0005](docs/adr/0005-partial-completion-template-selection.md)).
+_Avoid_: consultar o Order no envio, ler `order_items`, contar itens
+
 **Undeliverable Notification**:
 Envio que falhou definitivamente — Meta fora do ar após retry, ou número inválido. Vai para DLT e **não afeta o Order**. Nunca é descartada em silêncio: cliente que não foi avisado é problema de operação, não não-evento.
 _Avoid_: falha de notificação como falha de pedido, notificação perdida, erro ignorado

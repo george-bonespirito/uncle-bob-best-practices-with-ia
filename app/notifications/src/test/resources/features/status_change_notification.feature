@@ -67,3 +67,25 @@ Feature: Notificação ao cliente a cada mudança de status do pedido
     When a mensagem de mudança para "PROCESSING" é montada
     Then o template contém o número do pedido e o status
     And não contém nome, documento, endereço nem valores
+
+  Scenario: Conclusão parcial usa o template variante
+    Given um Order "#123" com 3 itens, um deles "NOT_FULFILLED"
+    And a Invoice Generation gravou "partially_fulfilled" na mesma transação da transição terminal
+    When o status do Order muda para "COMPLETED"
+    Then MS Notifications envia a mensagem com o Partial Completion Template
+    And a mensagem diz que houve item não atendido, sem dizer qual
+    And apenas uma mensagem é enviada, porque o variante é escolha de template dentro da mesma transição
+
+  Scenario: Conclusão com todos os itens atendidos usa o template normal
+    Given um Order "#123" com todos os itens "FULFILLED"
+    And "partially_fulfilled" não está marcado
+    When o status do Order muda para "COMPLETED"
+    Then o template usado é o de conclusão, não o variante
+
+  Scenario: A escolha do template não consulta o Order nem lê os itens
+    Given um Order "#123" que mudou para "COMPLETED" com um item não atendido
+    When MS Notifications monta a mensagem
+    Then o dado que decide o template vem da própria linha de "orders" no evento CDC
+    And MS Notifications não consulta o MS Order
+    And MS Notifications não consome o CDC de "order_items"
+    And a razão é que atendimento parcial é dado de negócio congelado, não dado de contato
