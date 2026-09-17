@@ -29,6 +29,7 @@ Além do perfil global (`~/.claude/CLAUDE.md`):
 - **Diagrama no mesmo PR que a decisão.** Spec, ADR ou `CONTEXT.md` que muda sem o `.drawio.svg` correspondente deixa o diagrama mentindo — SVG ninguém revisa. Os de `app/docs/diagrams/` são XML editável (rótulos no SVG). Hook `.claude/hooks/diagram-guard.py` lista o que ficou para trás ao fim da sessão; **avisa, não bloqueia**.
 - **ADR revertida não é apagada** — fica com nota do porquê. Revisão de ADR existente **anexa** no fim, não reescreve. Ex.: `order/0009`, `order/0010`. Skill: `adr-new`.
 - **Infra não mora aqui.** Cluster (`bonespirito-cluster-k3s-infra`) é outro repo. Sessões paralelas e o barramento: `docs/agents/multi-session.md`. Skill: `infra-relay`.
+- **Build/teste não têm comando daqui.** Sem Dockerfile nem `compose.yaml` — só a sessão `DEVELOPER`, no MacBook (única com JVM/Gradle/Node), builda, testa e pode afirmar que algo passa. Alegação de "funciona"/"testado" vinda de outra máquina não é verificada. Papéis: `docs/agents/multi-session.md`. Skill: `quality-gate`.
 
 ## Tracker
 

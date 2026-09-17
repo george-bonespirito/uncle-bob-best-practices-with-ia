@@ -94,11 +94,11 @@ Two constraints, both learned the hard way:
 
 The alternative, which supports a multi-line body: push the branch normally and open the compare URL git prints, with `?title=…&body=…` (URL-encoded) appended to prefill the form.
 
-**Reading or editing PR/issue metadata still needs a token** — that part has no tokenless path.
+**Editing PR/issue metadata still needs a token** — reading it doesn't (see below, repo is public).
 
 ## Issue tracker: Codeberg Issues
 
-The repo is **private** — there is no anonymous read, and an unauthenticated API call returns `404` rather than an empty result. Every tracker operation needs a credential.
+The repo is **public since 2026-09-08** — anonymous `GET` works (listing issues, reading one, checking for duplicates), only writes (`POST`/`PATCH`) need a credential. Older docs saying "private, every operation needs a token" are stale — verified against the API without a token.
 
 Everything goes through the **Forgejo REST API** — a token with scope `write:repository`, sent as `Authorization: token <TOKEN>` (on George's workstation: `CODEBERG_ACCESS_TOKEN`). **The `tea` CLI is no longer used here**; don't reach for it and don't put it back in docs.
 
@@ -106,7 +106,7 @@ Full operation mapping in `docs/agents/issue-tracker.md`.
 
 **Before creating anything**: search the tracker for an existing issue. Maps and child tickets were duplicated once when compaction erased conversation memory — **compaction erases conversation memory, not tracker state**, so "I don't remember this ticket" is evidence about the session, not the tracker.
 
-If a session has no token, ask the user to perform the write. An unreachable tracker is not licence to skip the duplicate check.
+If a session has no token, it still reads the tracker over the API — anonymous `GET` works — and asks the user to perform writes only. With anonymous read available, the duplicate check never needs a credential, so there's no excuse to skip it.
 
 ## Cross-session infra relay
 
