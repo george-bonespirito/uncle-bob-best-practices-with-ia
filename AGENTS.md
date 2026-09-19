@@ -7,7 +7,7 @@ Repo-specific context for OpenCode sessions. If docs conflict with code, trust c
 | Path | What | State |
 |---|---|---|
 | `doc/transcripts/` | ASR transcript of an Uncle Bob interview + `build.mjs` that cleans it | Done |
-| `app/` | Order Processing system design (supply chain reference) | Pre-implementation design only |
+| `app/` | Order Processing (supply chain reference) | Design completo; implementação começou — só a vertical slice de Bulk Import |
 
 **Domain work is `app/` only.** `doc/transcripts/`, `CLAUDE.md`, `docs/agents/`, and `.claude/` are unrelated. Skills scoped to `app/` should treat `app/` as root, not the repo root.
 
@@ -37,26 +37,41 @@ Reads `doc/transcripts/transcript-1.txt`, writes `doc/transcripts/uncle-bob-soft
 app/
 ├── CONTEXT-MAP.md           # 9 bounded contexts + relationships
 ├── docs/
-│   ├── adr/                 # system-wide decisions (0001..0008)
+│   ├── adr/                 # system-wide decisions (0001..0009; há dois 0009)
 │   ├── specs/               # PRD, integration contracts
 │   └── diagrams/            # C4 .drawio.svg (editável no draw.io)
+├── build.gradle.kts         # Gradle Kotlin DSL; `subprojects` aplica spring-boot-starter-web a todos
+├── settings.gradle.kts      # módulos com código: :order e :notifications
 ├── order/
 │   ├── CONTEXT.md           # Ubiquitous language (glossary)
 │   ├── docs/adr/            # context-local decisions
+│   ├── src/main/kotlin/     # Bulk Import: domain, application, infra/{web,csv,config}
+│   ├── src/main/resources/  # application.yml + db/migration (Flyway V1..V4)
 │   └── src/test/resources/features/
 ├── notifications/
+│   ├── CONTEXT.md
 │   ├── docs/adr/
+│   ├── src/main/kotlin/     # só NotificationsApplication.kt (sem dependências próprias)
 │   └── src/test/resources/features/
-└── customers/CONTEXT.md
+└── <outros 7 contextos>/CONTEXT.md   # só spec/ADR/glossário, sem src/
 ```
 
-**No implementation code exists.** No `build.gradle.kts`, no Kotlin, no Dockerfile. The `.feature` files are acceptance contracts with nothing behind them yet — deliberate (spec before code). This is tracked in the PRD's section 7 ("Partes cinzentas").
+**Existe código, e pouco.** Gradle e Kotlin existem; `Dockerfile` e `compose.yaml` não. O que está implementado é **a vertical slice de Bulk Import** em `:order` — `ImportOrdersController` (`POST /imports/orders`, `GET /imports/orders/{id}`), parser CSV, políticas de domínio e migrations Flyway. `:notifications` é só a classe de aplicação.
+
+O que **não** existe, e costuma ser assumido como existente:
+
+- **Nenhum cliente Kafka em lugar nenhum.** `order/build.gradle.kts` tem `spring-boot-starter-data-jpa` e `flyway-core`, e nada mais. O worker-polling/Conductor que consumiria os 7 tópicos `order.*.result` não foi escrito — é o item 10 da seção 7 da PRD, marcado **bloqueado**.
+- **Actuator não é dependência**, então não há `/actuator/health`, liveness nem readiness. Registrado como pendência na ADR order/0008.
+- **Porta não configurada** — `order/src/main/resources/application.yml` só declara `spring.application.name: ms-order`, logo vale o default 8080 do Boot.
+- Dos 11 `.feature`, **10 estão `@pending`** (filtrados do run). Só `bulk_import.feature` tem implementação atrás.
+
+Isto é rastreado na seção 7 da PRD ("Partes cinzentas").
 
 ## How to navigate domain design
 
 1. `app/CONTEXT-MAP.md` — the 9 contexts and how they relate
 2. `app/docs/adr/` — system-wide decisions
-3. `app/<context>/CONTEXT.md` — glossary (only Order and Customers have one so far)
+3. `app/<context>/CONTEXT.md` — glossary (os 9 contextos têm o seu; item 5 da seção 7 da PRD está fechado)
 4. `app/<context>/docs/adr/` — context-scoped decisions
 5. `app/<context>/src/test/resources/features/` — Gherkin acceptance tests
 
@@ -138,7 +153,9 @@ C4 diagrams are `.drawio.svg` — SVG with draw.io XML embedded. Open in browser
 
 - **`.claude/skills/infra-relay/`** — protocolo de conversa com a sessão de infra. **Desatualizada:** descreve o mcp-bus, que saiu; reescrita pendente.
 - **`.claude/skills/issue-ops/`** — tracker habits (check-before-create, Wayfinder body conventions, transport choice). Load before creating, commenting on, or editing any issue.
-- **`.claude/agents/gherkin-consistency-reviewer.md`** — reviews `.feature` files against ADRs and CONTEXT.md for drift. No implementation exists, so this is the only consistency check.
+- **`.claude/agents/gherkin-consistency-reviewer.md`** — reviews `.feature` files against ADRs and CONTEXT.md for drift. Os 10 `.feature` `@pending` não têm implementação atrás, então para eles é a única checagem possível.
+- **`.claude/agents/adr-consistency-reviewer.md`** — confere uma ADR nova ou revisada contra as outras do mesmo escopo e contra os `CONTEXT.md`.
+- **`.claude/agents/archunit-boundary-reviewer.md`** — violação de fronteira hexagonal/DDD em `.kt`, antes de o teste ArchUnit pegar.
 
 ## Infrastructure context (design, not deployed)
 
