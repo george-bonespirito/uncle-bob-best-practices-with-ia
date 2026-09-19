@@ -35,8 +35,8 @@ _Avoid_: notificação de item, segunda mensagem, status `COMPLETED_PARTIAL` (n�
 _Avoid_: consultar o Order no envio, ler `order_items`, contar itens
 
 **Undeliverable Notification**:
-Envio que falhou definitivamente — Meta fora do ar após retry, ou número inválido. Vai para DLT e **não afeta o Order**. Nunca é descartada em silêncio: cliente que não foi avisado é problema de operação, não não-evento.
-_Avoid_: falha de notificação como falha de pedido, notificação perdida, erro ignorado
+Envio que falhou definitivamente — Meta fora do ar após retry, ou número inválido. Vai para o tópico `notification.undeliverable` e **não afeta o Order**. Nunca é descartada em silêncio: cliente que não foi avisado é problema de operação, não não-evento. Carrega `orderId`, `newStatus`, `templateUsed` e o motivo da falha — **nunca o telefone**: número congelado reenviaria para o contato antigo, e quem reenvia rebusca no Customers ([ADR 0006](docs/adr/0006-undeliverable-notification-topic.md)).
+_Avoid_: falha de notificação como falha de pedido, notificação perdida, erro ignorado, `notification.result.dlt` (não é DLT de um resultado — não existe `notification.result`)
 
 **Contact Lookup**:
 Consulta síncrona ao [Customers](../customers/CONTEXT.md) no momento do envio, para obter o WhatsApp Phone atual — nunca do Snapshot do Order, para que troca de número valha imediatamente ([ADR notifications/0003](docs/adr/0003-lookup-contact-at-send-time.md)).
