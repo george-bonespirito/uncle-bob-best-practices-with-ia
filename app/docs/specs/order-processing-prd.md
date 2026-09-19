@@ -252,6 +252,8 @@ Duplicata de `(source_system_code, source_order_number)` — dentro do mesmo lot
 
 **Topologia Kafka (acordada com a sessão de infra, 2026-09-03):** 7 tópicos de resultado com **3 partições** cada — o paralelismo entre instâncias de MS Order depende disso (ADR order/0003); 7 tópicos `.dlt` e o tópico CDC com **1 partição** (baixo volume, resolução manual). Replication factor `1` em todos, imposto por haver um único broker. Tópicos criados declarativamente pela infra, sem depender de auto-create.
 
+**São 16 tópicos, não 15.** O 16º é `notification.undeliverable` — envio de WhatsApp que falhou definitivamente, 1 partição, RF 1, Write do `ms-notifications` ([ADR notifications/0006](../../notifications/docs/adr/0006-undeliverable-notification-topic.md)). É o único tópico do sistema que **não** começa com `order.`, porque o dono é o contexto Notifications e não o agregado Order — relevante se a ACL da infra for por prefixo em vez de literal por tópico.
+
 **Nome do tópico CDC:** o conector Debezium usa `topic.prefix = order.cdc`, o que produz o tópico **`order.cdc.public.orders`** (o Debezium compõe `<topic.prefix>.<schema>.<tabela>`). Pontos como separador mantêm consistência com os tópicos de resultado (`order.customer-enrichment.result`). É o tópico que o MS Notifications consome — ADR notifications/0001.
 
 **Ingress:** `ms-order.lab.bonespirito.com` (padrão da ADR-005 do repo de infra). Traefik 3.7.8 não limita tamanho de body por padrão e não há middleware de buffering, então o upload da planilha passa sem ajuste — verificado pela sessão de infra.
