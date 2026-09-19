@@ -185,3 +185,10 @@ ARCHITECT, MacBook = DEVELOPER) é o que a torna conferível — não há árbit
 Pendências conhecidas, nesta ordem: runtime do cursor no `agent-bus`; reescrita da
 skill `infra-relay`, que ainda documenta o transporte antigo; e a remoção dos
 recursos no cluster, com o DEVOPS.
+
+**QA (2026-09-19):** nenhuma sessão QA jamais entrou no squad, e ela fica **adiada**
+— não há trabalho para ela enquanto 10 dos 11 `.feature` estiverem `@pending` e o
+e2e da Saga seguir bloqueado. Quando existir, roda **no MacBook, em worktree
+próprio** ([ADR 0005](../adr/0005-sessao-qa-adiada-e-roda-no-macbook.md)): é a única
+máquina com JVM e Gradle, e duas sessões no mesmo repo e máquina é o caso da
+[ADR 0004](../adr/0004-worktree-isolado-por-sessao.md).
