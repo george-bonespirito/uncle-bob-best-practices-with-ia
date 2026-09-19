@@ -1,10 +1,30 @@
 ---
 name: infra-relay
-description: Protocol for coordinating with the infra session (bonespirito-cluster-k3s-infra) over the mcp-bus MCP barramento — poll the mailbox before closing any infra-consequential decision, never route the user to contact infra directly, relay proposals as coming from the user. Load before sending to or polling the infra session, or before answering questions about that protocol.
+description: Protocol for coordinating with the infra session (bonespirito-cluster-k3s-infra). DESATUALIZADA desde 2026-09-19 — descreve o mcp-bus, que foi descartado; o canal é o repo torgge/agent-bus. Load before messaging the infra session or answering questions about that protocol, and read the deprecation banner first: the transport below is historical, the rules of engagement still hold.
 user-invocable: false
 ---
 
 # infra-relay
+
+> ## ⚠️ Desatualizada desde 2026-09-19 — o mcp-bus foi descartado
+>
+> O canal do time é o repositório **`torgge/agent-bus`**: uma outbox NDJSON por papel,
+> em git, escritor único por arquivo, cursor por último `id` visto.
+> Decisão: [ADR-001 do `agent-bus`](https://codeberg.org/torgge/agent-bus/src/branch/main/docs/adr/ADR-001.md).
+> Contexto: nota de 2026-09-19 em [`multi-session.md`](../../../docs/agents/multi-session.md).
+>
+> **Tudo abaixo sobre o transporte é histórico** — `join`, `poll`, `peek`, `ack`,
+> `claim`, `leave`, o `session_id` emitido, o backlog do primeiro `join`, o servidor em
+> `https://mcp.lab.bonespirito.com/mcp`. Os recursos no k3s estão em remoção pelo DEVOPS;
+> chamar essas ferramentas vai falhar assim que ela acontecer.
+>
+> **O que sobrevive à reescrita** e continua valendo: esta sessão é o único ponto de
+> contato do usuário; o Architect delega o quê e o DEVOPS decide o como; nunca escrever
+> no repo de infra; e um FYI só merece resposta se o lado da aplicação depender dele.
+>
+> A reescrita está pendente e depende do runtime do cursor no `agent-bus`. Até lá, leia
+> o que segue como registro do que existia, não como instrução.
+
 
 > **Quem é quem, quem decide o quê:** [`docs/agents/multi-session.md`](../../../docs/agents/multi-session.md) e [`docs/adr/0003`](../../../docs/adr/0003-identidade-de-sessao-e-role-mais-repo.md). Mecanismo do barramento: ADR-022 da infra / [`PROTOCOL.md`](https://codeberg.org/torgge/bonespirito-cluster-k3s-infra/src/branch/main/mcp-bus/PROTOCOL.md) (também `https://mcp.lab.bonespirito.com/docs`). Se esta skill e o PROTOCOL divergirem, o PROTOCOL manda.
 

@@ -13,7 +13,7 @@ Repo-specific context for OpenCode sessions. If docs conflict with code, trust c
 
 ## Working alongside other sessions
 
-Several agent sessions work this project at once, across two repos and two CLIs, coordinated over the mcp-bus barramento. **Before joining the bus, opening a branch or a PR, read [`docs/agents/multi-session.md`](docs/agents/multi-session.md)** — it is the single source for who is who, who decides what, and how to work in parallel without collisions.
+Several agent sessions work this project at once, across two repos and two CLIs, coordinated over the `agent-bus` (o mcp-bus foi descartado em 2026-09-19). **Before joining the bus, opening a branch or a PR, read [`docs/agents/multi-session.md`](docs/agents/multi-session.md)** — it is the single source for who is who, who decides what, and how to work in parallel without collisions.
 
 Two rules from it that catch a session out immediately: your working identity is `role` + `kind` + `repo`, and you **receive** it — you never compute or choose it; and a PR opens as `WIP:` and is merged by George alone.
 
@@ -110,14 +110,15 @@ If a session has no token, it still reads the tracker over the API — anonymous
 
 ## Cross-session infra relay
 
-This session (application design) coordinates with a separate infra session (`bonespirito-cluster-k3s-infra`) over **mcp-bus**, an MCP barramento at `https://mcp.lab.bonespirito.com/mcp`. After ADR-022, `join` without a guessed `session_id` (`kind=claude-code`, `role=ARCHITECT`, `repo=uncle-bob-best-practices-with-ia`) and use the id the server returns. Rules:
-- **This session is the user's single point of contact** — never tell the user to talk to infra directly
-- Delivery is pull: `poll` at session start **and** before closing any infra-consequential decision (ADR, PR, spec)
-- Frame proposals as coming from the user ("George pediu X")
-- Never write/commit to the infra repo directly
-- When infra pushes an FYI, only reply if the app side depends on it
+This session (application design) coordinates with a separate infra session (`bonespirito-cluster-k3s-infra`). **O transporte mudou:** o mcp-bus foi descartado e o canal do time é o repositório `torgge/agent-bus` — uma outbox NDJSON por papel, em git, escritor único por arquivo, cursor por último `id` visto ([ADR-001 de lá](https://codeberg.org/torgge/agent-bus/src/branch/main/docs/adr/ADR-001.md)). A remoção dos recursos do mcp-bus do k3s foi pedida ao DEVOPS; execução e ordem são dele.
 
-**Gotcha**: `send` returns `sent: true` even when nobody received it — the message is parked until the target joins. Check `delivered_to` in the response, not `sent`. Details in `.claude/skills/infra-relay/`.
+O que não mudou, porque nunca dependeu do transporte:
+- **This session is the user's single point of contact** — never tell the user to talk to infra directly
+- **Architect delega o quê; DEVOPS decide o como** — implementação e o que entra no repo de infra continuam decisão dele
+- Never write/commit to the infra repo directly
+- Quando infra manda um FYI, só responda se o lado da aplicação depender
+
+**Enquanto não houver runtime no `agent-bus`, a leitura é manual** e o cursor de cada leitor vive em `bus/cursors/<leitor>.json`, fora do git. A skill `infra-relay` ainda documenta o mcp-bus e **está desatualizada** — reescrita pendente, registrada na nota de 2026-09-19 em `docs/agents/multi-session.md`.
 
 ## Triage labels (mattpocock/skills convention)
 
@@ -135,7 +136,7 @@ C4 diagrams are `.drawio.svg` — SVG with draw.io XML embedded. Open in browser
 
 ## Skills and agents in this repo
 
-- **`.claude/skills/infra-relay/`** — protocol for messaging the infra session over mcp-bus. Load before polling or sending.
+- **`.claude/skills/infra-relay/`** — protocolo de conversa com a sessão de infra. **Desatualizada:** descreve o mcp-bus, que saiu; reescrita pendente.
 - **`.claude/skills/issue-ops/`** — tracker habits (check-before-create, Wayfinder body conventions, transport choice). Load before creating, commenting on, or editing any issue.
 - **`.claude/agents/gherkin-consistency-reviewer.md`** — reviews `.feature` files against ADRs and CONTEXT.md for drift. No implementation exists, so this is the only consistency check.
 

@@ -29,3 +29,26 @@ Elimina a classe de erro, não a mitiga. Duas sessões não podem pisar no mesmo
 **Importar o protocolo de handoff completo do swarm-forge.** Substituiria um barramento que já funciona (mcp-bus, com auditoria, exclusividade de role no servidor, backlog) por um mecanismo de arquivo+daemon novo, sem ganho claro sobre o que já está em produção.
 
 Status: proposed
+
+---
+
+## Nota 2026-09-19: a alternativa rejeitada aqui foi parcialmente adotada
+
+Esta ADR rejeitou "importar o protocolo de handoff completo do swarm-forge" com o
+argumento de que substituiria **"um barramento que já funciona (mcp-bus, com
+auditoria, exclusividade de role no servidor, backlog)"** por arquivo + daemon.
+
+Esse argumento caiu: o mcp-bus foi descartado
+([ADR-001 do `agent-bus`](https://codeberg.org/torgge/agent-bus/src/branch/main/docs/adr/ADR-001.md)),
+por entrega e ownership — `send` devolvia `sent: true` com a mensagem parada numa
+caixa que ninguém abria. O canal novo é justamente handoff por arquivo: uma outbox
+NDJSON por papel, em git.
+
+Não é a adoção do swarm-forge inteiro, e a diferença importa. O que entrou foi o
+handoff por arquivo com **escritor único por arquivo** e cursor por último `id`
+visto. O que continua fora: o daemon de entrega, e a corrente linear de roles
+(`specifier → coder → refactorer → architect`) — a topologia daqui segue sendo o
+ARCHITECT como hub, não uma corrente fixa.
+
+O que esta ADR decide — worktree isolado por sessão — não muda: é sobre onde a
+sessão escreve, não sobre por onde ela fala. Continua `proposed`.
