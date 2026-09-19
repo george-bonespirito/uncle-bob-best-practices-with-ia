@@ -142,3 +142,46 @@ Conteúdo num lugar só, ponteiros no resto. Num único dia, três documentos de
 - Tracker: `docs/agents/issue-tracker.md`.
 
 Uma skill ou `AGENTS.md` **aponta**; não copia.
+
+---
+
+## Nota 2026-09-19: o mcp-bus foi descartado
+
+Anexada, não reescrita — a convenção deste repo.
+
+**O barramento deste time deixou de ser o mcp-bus.** O canal normativo agora é o
+repositório `torgge/agent-bus`, decidido na
+[ADR-001 de lá](https://codeberg.org/torgge/agent-bus/src/branch/main/docs/adr/ADR-001.md)
+(mergeada em `4bd8a8e`): uma outbox NDJSON por papel em git, escritor único por
+arquivo, cursor por último `id` visto. A remoção dos recursos do mcp-bus do k3s foi
+pedida ao DEVOPS; a execução e a ordem são dele.
+
+**Tudo o que este arquivo diz acima sobre o mecanismo do mcp-bus passa a ser
+histórico:** `join`/`peek`/`ack`/`claim`/`leave`, o `session_id` emitido no formato
+`{kind}-{ROLE}-{n}`, o backlog do primeiro `join`, o cursor no servidor. Nada disso
+existe no canal novo. O `PROTOCOL.md` no repo de infra segue sendo o contrato **do
+servidor que sai**, não do canal que fica.
+
+O que **continua valendo**, porque nunca dependeu do transporte:
+
+- A identidade é `role` + `kind` + `repo`, e a sessão não escolhe a própria
+  autoridade ([ADR 0003](../adr/0003-identidade-de-sessao-e-role-mais-repo.md)).
+- Os dois eixos de delegação: Architect delega entre roles, Manager dentro de uma
+  role plural.
+- Architect delega o quê; DEVOPS decide o como.
+- A divisão segue a máquina: `ARCHITECT` no `llm-server`, que não compila;
+  `DEVELOPER` no MacBook, o único que pode afirmar que algo passa.
+- Branch, `WIP:` no título, e só George mergeia.
+
+**O que se perde com o descarte, e precisa estar escrito em vez de descoberto
+depois:** a exclusividade de role era **checada no servidor** — ele recusava o
+`join` de um segundo ARCHITECT enquanto o primeiro fosse membro vivo
+(`lib.rs:763-776`, teste `role_exclusiva_recusa_o_segundo`). Arquivo em git não
+checa nada: o `from` de uma linha NDJSON é autodeclarado. O `claim`, que serializava
+role plural, também não tem equivalente. Até haver runtime no `agent-bus`, a
+exclusividade de role é **convenção**, e a atribuição por máquina (llm-server =
+ARCHITECT, MacBook = DEVELOPER) é o que a torna conferível — não há árbitro.
+
+Pendências conhecidas, nesta ordem: runtime do cursor no `agent-bus`; reescrita da
+skill `infra-relay`, que ainda documenta o transporte antigo; e a remoção dos
+recursos no cluster, com o DEVOPS.

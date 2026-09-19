@@ -101,3 +101,27 @@ Uma sessão `ARCHITECT` testou o caso e concluiu o oposto: deu `join` como `ARCH
 Consequência prática: a role exclusiva se libera quando quem a detém sai do squad (`leave`), não por decisão de quem entra depois. Mecanismo confirmado pela infra; contrato formal continua em `mcp-bus/PROTOCOL.md`.
 
 Status: accepted, mecanismo emenda pela ADR-022 da infra
+
+---
+
+## Nota 2026-09-19: o mecanismo caiu com o mcp-bus; o princípio fica
+
+O mcp-bus foi descartado em favor do `torgge/agent-bus`
+([ADR-001 de lá](https://codeberg.org/torgge/agent-bus/src/branch/main/docs/adr/ADR-001.md)).
+
+**O princípio desta ADR continua valendo:** a identidade de trabalho é `role` +
+`kind` + `repo`, e a sessão não escolhe a própria autoridade.
+
+**O mecanismo inteiro sai.** `session_id` emitido no `join` no formato
+`{kind}-{ROLE}-{n}`, o contador monotônico por `(kind, ROLE)`, a exclusividade
+checada no servidor (`lib.rs:763-776`, teste `role_exclusiva_recusa_o_segundo`), o
+`claim` de role plural, o `leave` que libera a role — nada disso existe num canal de
+arquivo em git. O `PROTOCOL.md` da infra passa a ser o contrato do servidor que sai.
+
+Consequência que não dá para deixar implícita: **a exclusividade de role deixa de
+ser garantida e volta a ser convenção.** Era a única parte desta ADR que um
+mecanismo garantia, e era o que tornava seguro dizer "existe um só ARCHITECT". No
+`agent-bus` não há árbitro até haver runtime. O que restou de conferível é a
+atribuição por máquina.
+
+Status: princípio accepted; mecanismo retirado com o descarte do mcp-bus

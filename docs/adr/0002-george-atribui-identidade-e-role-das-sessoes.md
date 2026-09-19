@@ -50,3 +50,21 @@ Os dois incidentes que motivaram esta ADR continuam cobertos pela 0003. A caixa 
 
 Esta ADR continua valendo **até o cutover** do mecanismo novo.
 
+
+---
+
+## Nota 2026-09-19: o barramento citado aqui saiu
+
+O mcp-bus foi descartado; o canal do time é o `torgge/agent-bus`
+([ADR-001 de lá](https://codeberg.org/torgge/agent-bus/src/branch/main/docs/adr/ADR-001.md)).
+
+Isso **restaura parte desta ADR**, e vale dizer com precisão qual. O mecanismo que
+a aposentou era o servidor propondo a role e o humano confirmando no Allow — esse
+servidor sai. Arquivo em git não tem Allow nem roster: o `from` de uma linha NDJSON
+é autodeclarado, exatamente a condição que esta ADR foi escrita para conter.
+
+O que fica no lugar não é o registro fixo de `session_id` de 2026-09: é a
+**atribuição por máquina**, que já é a prática e é conferível — `llm-server` é
+ARCHITECT, MacBook é DEVELOPER. O princípio desta ADR continua sendo o que vale:
+**a sessão não decide a própria autoridade.** Quem garante isso deixou de ser o
+servidor e voltou a ser convenção verificável, não escolha da sessão.
