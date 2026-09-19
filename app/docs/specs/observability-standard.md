@@ -4,7 +4,7 @@ O que todo microsserviço deste sistema é **obrigado** a emitir. Vale para MS O
 
 A infraestrutura de coleta (Alloy + Loki, retenção D-1) é do repositório de infra e está descrita lá — ver ADR-019 deles. **Este documento não descreve o backend**: o Loki é armazenamento e não garante padrão nenhum. O contrato são as convenções do OTel, e quem as impõe é o Collector no caminho. Trocar o backend não mudaria uma linha daqui.
 
-Decisões e justificativas em [ADR raiz 0009](../adr/0009-observability-standard.md).
+Decisões e justificativas em [ADR raiz 0010](../adr/0010-observability-standard.md).
 
 ## Atributos obrigatórios
 

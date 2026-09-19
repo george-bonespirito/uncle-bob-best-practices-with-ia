@@ -82,3 +82,13 @@ O padrão que isto expõe é o de sempre por aqui: decisão que entra direto na 
 
 **O título desta ADR dizia "dois labels".** A seção "Três labels indexados" narra que a primeira versão errou e conclui que ficam os três; o título tinha ficado na versão anterior à correção. Ajustado para "três labels" — a narrativa do erro continua no corpo, que é onde ela vale, e esta nota registra o ajuste em vez de deixá-lo silencioso.
 
+
+**Renumerada de 0009 para 0010 (2026-09-19).** Este arquivo nasceu como
+`0009-observability-standard.md` e colidia com
+[`0009-interfaces-para-use-cases-e-adapters-de-infra.md`](./0009-interfaces-para-use-cases-e-adapters-de-infra.md) —
+duas ADRs de escopo raiz com o mesmo número, o que torna "ADR raiz 0009" ambíguo
+em toda referência. O critério foi a ordem de entrada: a de interfaces entrou em
+2026-09-07 (`6dbebaa`), esta em 2026-09-12 (`35ca197`), então quem chegou depois
+mudou. **Nenhuma decisão desta ADR mudou** — só o número e as referências a ele.
+Quem encontrar "ADR raiz 0009" querendo dizer observabilidade em documento antigo,
+ou fora deste repositório, está lendo referência anterior a esta data.
