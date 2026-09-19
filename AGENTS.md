@@ -37,7 +37,7 @@ Reads `doc/transcripts/transcript-1.txt`, writes `doc/transcripts/uncle-bob-soft
 app/
 ├── CONTEXT-MAP.md           # 9 bounded contexts + relationships
 ├── docs/
-│   ├── adr/                 # system-wide decisions (0001..0009; há dois 0009)
+│   ├── adr/                 # system-wide decisions (0001..0010)
 │   ├── specs/               # PRD, integration contracts
 │   └── diagrams/            # C4 .drawio.svg (editável no draw.io)
 ├── build.gradle.kts         # Gradle Kotlin DSL; `subprojects` aplica spring-boot-starter-web a todos
