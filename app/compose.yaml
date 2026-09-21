@@ -1,0 +1,58 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    image: order-processing-dev:local
+    user: "1000:1000"
+    working_dir: /app
+    volumes:
+      - .:/app
+      - gradle-cache:/home/gradle/.gradle
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:30432/order?sslmode=disable
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=host.docker.internal:30092
+      - APICURIO_REGISTRY_URL=http://host.docker.internal:30080/apis/registry/v2
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    network_mode: "host"
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    image: order-processing-dev:local
+    user: "gradle:gradle"
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - SPRING_PROFILES_ACTIVE=test
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:30432/order?sslmode=disable
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=host.docker.internal:30092
+      - APICURIO_REGISTRY_URL=http://host.docker.internal:30080/apis/registry/v2
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /home/gradle/.gradle
+    network_mode: "host"
+    entrypoint: ["./gradlew", "check", "--no-daemon"]
+
+volumes:
+  gradle-cache:

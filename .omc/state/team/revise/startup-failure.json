@@ -1,0 +1,5 @@
+{
+  "reason": "startup_failed_before_config_persisted",
+  "error": "leader_worktree_dirty: commit, stash, or clean changes before enabling team worktree mode",
+  "recorded_at": "2026-09-15T18:09:10.693Z"
+}
