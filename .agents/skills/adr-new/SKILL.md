@@ -5,7 +5,7 @@ description: Cria uma nova ADR seguindo as convenções deste repo — numeraç�
 
 # adr-new
 
-Convenções deste domínio (`CLAUDE.md` raiz), além do formato ADR padrão:
+Convenções deste domínio (`AGENTS.md` raiz), além do formato ADR padrão:
 
 - **ADR revertida não é apagada** — fica no repo, com nota do porquê a decisão mudou. Ver `app/order/docs/adr/0009-*.md` e `0010-*.md` como exemplo real de reversão.
 - **Revisão de ADR existente é anexada, não reescrita** — nota de revisão datada no fim do arquivo, o corpo original permanece intacto.

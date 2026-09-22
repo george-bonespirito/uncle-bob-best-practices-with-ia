@@ -76,4 +76,4 @@ O conteúdo de `doc/transcripts/` é transcrição de uma entrevista pública de
 
 ## Para agentes
 
-[`CLAUDE.md`](CLAUDE.md) tem as instruções de trabalho neste repositório — arquitetura do pipeline de transcrição, convenções de domínio, e as skills configuradas em `.claude/skills/`.
+[`AGENTS.md`](AGENTS.md) tem as instruções de trabalho neste repositório — arquitetura do pipeline de transcrição, convenções de domínio, e as skills configuradas em `.agents/skills/`.

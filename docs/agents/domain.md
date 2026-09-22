@@ -2,7 +2,7 @@
 
 How the engineering skills should consume this repo's domain documentation when exploring the codebase.
 
-**This repo mixes two unrelated things.** Domain docs live under `app/`, not the repo root — the repo root also has `doc/transcripts/` (the source video transcript this project started from, and the script that cleans it) and `CLAUDE.md`, neither of which is part of the Order Processing domain. Skills should treat `app/` as the domain root, not the git repo root.
+**This repo mixes two unrelated things.** Domain docs live under `app/`, not the repo root — the repo root also has `doc/transcripts/` (the source video transcript this project started from, and the script that cleans it) and `AGENTS.md`, neither of which is part of the Order Processing domain. Skills should treat `app/` as the domain root, not the git repo root.
 
 ## Before exploring, read these
 

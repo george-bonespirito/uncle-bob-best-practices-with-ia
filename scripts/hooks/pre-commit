@@ -1,0 +1,11 @@
+#!/bin/sh
+# Gatilho. A regra vive em scripts/check-vendor-context.sh — uma implementação,
+# dois gatilhos (ADR-005; agent-bus#34).
+#
+# Instalar (uma vez por clone):
+#   git config core.hooksPath scripts/hooks
+#
+# Limite honesto: hook local não é enforcement — quem não instala não é pego.
+# Existe porque é o único mecanismo que alcança `CLAUDE.local.md`, que não é
+# versionado e é invisível a qualquer CI.
+exec sh "$(git rev-parse --show-toplevel)/scripts/check-vendor-context.sh" --staged

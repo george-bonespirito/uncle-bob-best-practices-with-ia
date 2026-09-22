@@ -1,0 +1,16 @@
+# Arquivos autorizados a citar `CLAUDE.md` — um caminho por linha, exato.
+# Autorizado só quem PRECISA nomear o que está proibido.
+#
+# Os documentos que definem o padrão — precisam nomear o que está proibido:
+AGENTS.md
+scripts/hooks/pre-commit
+scripts/check-vendor-context.sh
+.vendor-context-allow
+#
+# Território de transcrição (doc/transcripts/): a string é conteúdo, não
+# instrução. `build.mjs` tem `[/claw\.md/gi, "CLAUDE.md"]` como correção de
+# ASR; os dois transcripts abaixo discutem CLAUDE.md/AGENTS.md como assunto
+# da entrevista. Apagar essas ocorrências corromperia o produto do repo.
+doc/transcripts/build.mjs
+doc/transcripts/uncle-bob-software-fundamentals-ai.md
+doc/transcripts/ferramentas-qualidade-codigo.md
