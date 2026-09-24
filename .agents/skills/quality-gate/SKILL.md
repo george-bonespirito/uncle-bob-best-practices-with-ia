@@ -10,10 +10,7 @@ Fecha o loop TDD + Quality Gate do `AGENTS.md` raiz: "Qualquer layer vermelho �
 
 ## Caveat conhecido: golden rule container-first
 
-`AGENTS.md` exige `docker compose run --rm <svc> ./gradlew check` — mas este repo **não tem `compose.yaml` nem `Dockerfile`** hoje. Isso é um blocker pré-existente, não algo pra este skill resolver sozinho.
-
-- Se `compose.yaml` existir no momento do uso: rode via `docker compose run --rm <svc> ./gradlew check`, um serviço por subprojeto.
-- Se não existir: **avise o usuário explicitamente** que o gate vai rodar no host (`./gradlew check`), fora do container, violando a golden rule — não rode em silêncio como se fosse o caminho normal. Pergunte se quer que o compose seja criado primeiro (fora do escopo deste skill) ou se aceita a exceção pra esta rodada.
+Rode via `docker compose -f app/compose.yaml run --rm <svc> ./gradlew check`, um serviço por subprojeto. Se `compose.yaml` sumir num estado futuro do repo, trate como blocker e avise antes de rodar no host.
 
 ## Subprojetos Gradle hoje
 

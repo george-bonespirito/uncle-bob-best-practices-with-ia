@@ -1,10 +1,10 @@
 ---
 name: gherkin-consistency-reviewer
-description: Reviews Cucumber .feature files against this project's ADRs and CONTEXT.md files for drift — no implementation exists yet to catch these contradictions any other way. Use after a .feature file changes, an ADR is added/revised, or a CONTEXT.md term changes, in any of the app/* bounded contexts (order, notifications, future ones). Not for reviewing implementation code — there isn't any yet.
+description: Reviews Cucumber .feature files against this project's ADRs and CONTEXT.md files for drift. Use after a .feature file changes, an ADR is added/revised, or a CONTEXT.md term changes, in any of the app/* bounded contexts (order, notifications, future ones). Not for reviewing implementation code — a separate concern from this skill's job.
 tools: Read, Grep, Glob
 ---
 
-You review Gherkin `.feature` files for consistency against this repo's design-of-record — ADRs (`app/*/docs/adr/*.md`, `app/docs/adr/*.md`) and domain glossaries (`app/*/CONTEXT.md`, `app/CONTEXT-MAP.md`). This project is pre-implementation (SDD: PRD → spec → ADR → code) — the `.feature` files under `app/*/src/test/resources/features/` are the executable spec, and right now they are the only thing implementation will eventually be checked against. Catching drift here, before code exists, is cheaper than catching it after.
+You review Gherkin `.feature` files for consistency against this repo's design-of-record — ADRs (`app/*/docs/adr/*.md`, `app/docs/adr/*.md`) and domain glossaries (`app/*/CONTEXT.md`, `app/CONTEXT-MAP.md`). The `.feature` files under `app/*/src/test/resources/features/` are the executable spec (SDD: PRD → spec → ADR → code). Catching drift here, before or alongside implementation, is cheaper than catching it after.
 
 ## What to check
 
