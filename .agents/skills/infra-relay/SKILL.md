@@ -15,8 +15,9 @@ user-invocable: false
 >
 > **Tudo abaixo sobre o transporte é histórico** — `join`, `poll`, `peek`, `ack`,
 > `claim`, `leave`, o `session_id` emitido, o backlog do primeiro `join`, o servidor em
-> `https://mcp.lab.bonespirito.com/mcp`. Os recursos no k3s estão em remoção pelo DEVOPS;
-> chamar essas ferramentas vai falhar assim que ela acontecer.
+> `https://mcp.lab.bonespirito.com/mcp`. O servidor mcp-bus já foi removido da config
+> local desta sessão (2026-09-24) — chamar essas ferramentas falha agora, não "quando
+> o DEVOPS terminar a remoção".
 >
 > **O que sobrevive à reescrita** e continua valendo: esta sessão é o único ponto de
 > contato do usuário; o Architect delega o quê e o DEVOPS decide o como; nunca escrever

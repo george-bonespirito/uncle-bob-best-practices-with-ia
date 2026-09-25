@@ -1,0 +1,22 @@
+# Segunda camada do enforcement do padrão de contexto de agente (ADR-005). A
+# primeira é o hook local, em scripts/hooks/pre-commit.
+#
+# UMA implementação, dois gatilhos: este pipeline chama o MESMO script que o
+# hook chama, só com --all em vez de --staged. Reescrever a regra em YAML
+# recriaria a duplicação que a ADR-005 trata.
+#
+# O que este check NÃO alcança, e não há como alcançar: `CLAUDE.local.md` na
+# máquina de quem não instalou o hook. Não é versionado, então nenhum CI o vê.
+# CI prova o repositório; o disco de alguém, só o hook local.
+#
+# Infra: Woodpecker 3.18.1 (ADR-026 do bonespirito-cluster-k3s-infra). Builds
+# rodam confinados no namespace woodpecker-builds, com MAX_WORKFLOWS=1 — o
+# limite daquele nó é térmico, não de RAM.
+when:
+  - event: [push, pull_request]
+
+steps:
+  - name: vendor-context
+    image: alpine/git:latest
+    commands:
+      - sh scripts/check-vendor-context.sh --all
