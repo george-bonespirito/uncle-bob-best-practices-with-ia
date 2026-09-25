@@ -15,7 +15,7 @@ Linguagem dos **9 bounded contexts**: resolvida — cada um tem `app/<contexto>/
 
 Implementação começou em `app/`: Gradle Kotlin DSL (`app/build.gradle.kts`, `app/gradlew`), módulos `:order` e `:notifications` (Kotlin + Gherkin). Os outros 7 contextos ainda são spec/ADR/glossário — sem `src/`.
 
-Não há `Dockerfile` nem `compose.yaml`, então não existe comando de build documentado a partir deste repositório. **Build e teste rodam na máquina do Developer**, que é a única com JVM, Gradle e Node — ver [`docs/agents/multi-session.md`](docs/agents/multi-session.md).
+Há `app/Dockerfile` + `app/compose.yaml` (issue #70): build e teste rodam em container a partir deste repositório — `docker compose -f app/compose.yaml run --rm test`. Quem executa é a sessão Developer, no MacBook, única máquina com JVM, Gradle, Node e Docker — ver [`docs/agents/multi-session.md`](docs/agents/multi-session.md).
 
 ## Como clonar
 
