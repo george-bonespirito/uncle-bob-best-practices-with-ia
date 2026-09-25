@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.spring.dependency.management) apply false
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.pitest) apply false
+    alias(libs.plugins.jib) apply false
 }
 
 // Convenção única, aplicada a todo microsserviço. O PRD manda os mesmos
