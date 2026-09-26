@@ -182,9 +182,9 @@ role plural, também não tem equivalente. Até haver runtime no `agent-bus`, a
 exclusividade de role é **convenção**, e a atribuição por máquina (llm-server =
 ARCHITECT, MacBook = DEVELOPER) é o que a torna conferível — não há árbitro.
 
-Pendências conhecidas, nesta ordem: runtime do cursor no `agent-bus`; reescrita da
-skill `infra-relay`, que ainda documenta o transporte antigo; e a remoção dos
-recursos no cluster, com o DEVOPS.
+Pendências conhecidas, nesta ordem: runtime do cursor no `agent-bus`; e a remoção dos
+recursos no cluster, com o DEVOPS. (A reescrita da skill `infra-relay` saiu desta
+lista em 2026-09-26 — PR #76.)
 
 **QA (2026-09-19):** nenhuma sessão QA jamais entrou no squad, e ela fica **adiada**
 — não há trabalho para ela enquanto 10 dos 11 `.feature` estiverem `@pending` e o
