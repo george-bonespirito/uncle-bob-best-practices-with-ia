@@ -10,6 +10,8 @@ dependencies {
     "implementation"("org.springframework.boot:spring-boot-starter-data-jpa")
     "implementation"(libs.flyway.core)
 
+    "runtimeOnly"(libs.postgresql)
+
     "testRuntimeOnly"(libs.h2)
 }
 
