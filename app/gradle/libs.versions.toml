@@ -20,6 +20,7 @@ mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 pitest-junit5 = { module = "org.pitest:pitest-junit5-plugin", version.ref = "pitestJunit5" }
 flyway-core = { module = "org.flywaydb:flyway-core" }
 h2 = { module = "com.h2database:h2" }
+postgresql = { module = "org.postgresql:postgresql" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

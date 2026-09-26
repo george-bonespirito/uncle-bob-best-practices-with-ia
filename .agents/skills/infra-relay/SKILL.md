@@ -1,144 +1,86 @@
 ---
 name: infra-relay
-description: Protocol for coordinating with the infra session (bonespirito-cluster-k3s-infra). DESATUALIZADA desde 2026-09-19 — descreve o mcp-bus, que foi descartado; o canal é o repo torgge/agent-bus. Load before messaging the infra session or answering questions about that protocol, and read the deprecation banner first: the transport below is historical, the rules of engagement still hold.
+description: Protocol for coordinating with the infra session (devops.infra) over the torgge/agent-bus channel — NDJSON outboxes in git, single writer per file, local cursor by last seen id. Load before checking the bus, sending any cross-repo message, or answering questions about that protocol.
 user-invocable: false
 ---
 
 # infra-relay
 
-> ## ⚠️ Desatualizada desde 2026-09-19 — o mcp-bus foi descartado
->
-> O canal do time é o repositório **`torgge/agent-bus`**: uma outbox NDJSON por papel,
-> em git, escritor único por arquivo, cursor por último `id` visto.
-> Decisão: [ADR-001 do `agent-bus`](https://codeberg.org/torgge/agent-bus/src/branch/main/docs/adr/ADR-001.md).
-> Contexto: nota de 2026-09-19 em [`multi-session.md`](../../../docs/agents/multi-session.md).
->
-> **Tudo abaixo sobre o transporte é histórico** — `join`, `poll`, `peek`, `ack`,
-> `claim`, `leave`, o `session_id` emitido, o backlog do primeiro `join`, o servidor em
-> `https://mcp.lab.bonespirito.com/mcp`. O servidor mcp-bus já foi removido da config
-> local desta sessão (2026-09-24) — chamar essas ferramentas falha agora, não "quando
-> o DEVOPS terminar a remoção".
->
-> **O que sobrevive à reescrita** e continua valendo: esta sessão é o único ponto de
-> contato do usuário; o Architect delega o quê e o DEVOPS decide o como; nunca escrever
-> no repo de infra; e um FYI só merece resposta se o lado da aplicação depender dele.
->
-> A reescrita está pendente e depende do runtime do cursor no `agent-bus`. Até lá, leia
-> o que segue como registro do que existia, não como instrução.
+**Quem é quem, quem decide o quê:** [`docs/agents/multi-session.md`](../../../docs/agents/multi-session.md) e [`docs/adr/0003`](../../../docs/adr/0003-identidade-de-sessao-e-role-mais-repo.md). Se esta skill e o agent-bus divergirem, o agent-bus manda — lá o código (NDJSON) é a verdade compartilhada.
 
+O canal do time é o repositório **[`torgge/agent-bus`](https://codeberg.org/torgge/agent-bus)**: uma outbox NDJSON por papel, em git, escritor único por arquivo, cursor por último `id` visto. Decisão: [ADR-001 do agent-bus](https://codeberg.org/torgge/agent-bus/src/branch/main/docs/adr/ADR-001.md). O transporte anterior (mcp-bus, MCP Streamable HTTP em `mcp.lab.bonespirito.com`) foi descartado em 2026-09-19; o servidor não existe mais e nenhuma ferramenta dele é chamável — `join`/`poll`/`send`/`ack` dessa época são histórico, não instrução.
 
-> **Quem é quem, quem decide o quê:** [`docs/agents/multi-session.md`](../../../docs/agents/multi-session.md) e [`docs/adr/0003`](../../../docs/adr/0003-identidade-de-sessao-e-role-mais-repo.md). Mecanismo do barramento: ADR-022 da infra / [`PROTOCOL.md`](https://codeberg.org/torgge/bonespirito-cluster-k3s-infra/src/branch/main/mcp-bus/PROTOCOL.md) (também `https://mcp.lab.bonespirito.com/docs`). Se esta skill e o PROTOCOL divergirem, o PROTOCOL manda.
+## Onde estão as coisas
 
-The user (George) works this project across several agent sessions, split by repo: the application side (`uncle-bob-best-practices-with-ia`, this one) and the infra side (`bonespirito-cluster-k3s-infra`, cluster k3s). Full history: memory `reference-two-agent-collaboration`.
+Clones lado a lado no MacBook. De dentro deste repo, o caminho relativo é `../agent-bus`:
 
-The split is by repo, not by session count — each side has had more than one window open at a time, in more than one CLI. Read the roster (`list_sessions`) instead of assuming who is there; it changes mid-session.
+- Outboxes: `../agent-bus/bus/<papel>.ndjson` — uma por papel.
+- Meu cursor: `../agent-bus/bus/cursors/dev.uncle-bob.json` — **local, não versionado** (está no `.gitignore`). Nasce ausente (= posição zero) na primeira leitura. Não confundir com `cursors/architect.json`, que é dele, no llm-server.
+- O Syncthing (ADR-003) replica `bus/` entre MacBook e llm-server **exceto `cursors/`** — é por isso que mensagem nova já está em disco quando alguém manda eu olhar. O que faltava não era infra, era instrução de quando olhar — é o que as seções seguintes cobrem.
 
-## Transport: the mcp-bus barramento
+## Protocolo (resumo; canônico: `../agent-bus/bus/README.md`)
 
-The two sides talk over **mcp-bus** — an MCP server (Streamable HTTP) at `https://mcp.lab.bonespirito.com/mcp`, auth by `Authorization: Bearer <token>`. It exists because `SendMessage`/`ListAgents` is Claude Code-only and the infra side is not always on Claude Code — when it ran under OpenCode, that channel stopped existing on its end.
+Uma linha JSON por evento: `id`, `from`, `to`, `type`, `payload`, `ts`.
 
-**Which CLI is on the other side changes; do not hard-code it.** The infra side has run under OpenCode and under Claude Code, sometimes both at once in different windows. When a Claude Code infra session is up, `SendMessage` works again as a second channel alongside the bus — `ListAgents` shows whether one is live right now. The bus is the channel that works either way, which is why it stays the primary one.
+- `id` = `<papel>-<seq>`, sequência monotônica **por remetente**, emitida por quem escreve — é o que torna o cursor decidível sem relógio comum entre as máquinas.
+- `from` e o prefixo do `id` são o nome da outbox em que a linha está. Linha que erra isso é lixo; a já commitada **não se reescreve** — correção é append de errata na própria outbox.
+- `to` = nome da outbox do destinatário. O legado `to: devops` é lido pelo `devops.infra`; ninguém novo emite esse alias.
+- `type`: `task` | `done` | `blocked` | `report`. Tipo extra só entra com ADR.
+- `ts` é informativo, **nunca** critério de ordem.
 
-Registered in this project at **local scope** (`~/.claude.json`, not in Git — the repo is public). Interactive: `claude` `/mcp` autenticar — o CLI guarda o grant OAuth; Allow é só "este cliente?". Headless: `~/.config/mcp-bus/token.<rótulo>` (modo 600). Never commit it, never put it in `.mcp.json`.
+## Ler
 
-**The grouping key is the squad, not the repo.** Every tool takes `squad`; `repo` is optional metadata saying which repository a session lives in or a message is about. An earlier version of this skill documented `repo` as the key and a `list_repos()` tool — both are gone.
+Cursor é o último `id` visto **por arquivo de origem — nunca offset de byte**. Byte offset morre na primeira concorrência real (merge do git move a posição, Syncthing deixa `*.sync-conflict-*` ao lado).
 
-Tools:
+Ler é, em `../agent-bus/bus/`:
 
-- `join(squad, kind, role, repo?)` — omit `session_id` on first join; use the id in the response. Roles are UPPERCASE (`ARCHITECT`, `DEVELOPER`, `DEVOPS`).
-- `list_sessions(squad)`
-- `list_squads()`
-- `send(squad, from, to, body, repo?)` — `to` is **required**
-- `poll(squad, session_id, claim?)`
-- `leave(squad, session_id)` — added by infra ADR-012
-- `peek(squad, session_id, include_role_queue?)` / `ack(squad, session_id, ids)` — added by infra ADR-013
-- `claim(squad, session_id, ids)` — added by infra ADR-016
+1. Para cada outbox alheia, abrir o arquivo, descartar tudo até o `id` registrado para ela no cursor (cursor ausente ou origem ausente = posição zero).
+2. Processar o resto filtrando `to` = `dev.uncle-bob` (este endereço recebe do architect e do devops.infra; FYI do devops.infra sobre pushes no repo dele não exige resposta — ver Política abaixo).
+3. Só então gravar o novo último `id` de cada origem em `cursors/dev.uncle-bob.json`.
 
-**Do not hard-code this session's identity.** Cutover (infra ADR-022) already happened: `join` without guessing `session_id`, then use what the server returned. Read `list_sessions`. Work for infra: `to: DEVOPS`.
+Nunca apagar o cursor de um leitor vivo — ele reprocessa a outbox inteira.
 
-### More than one holder of a role
+## Escrever
 
-Manager and Executor, with the tiebreak by `kind` — and `Architect` is unique across the whole squad, so the pairing never applies to it. The rule lives in [`multi-session.md`](../../../docs/agents/multi-session.md); it is not repeated here, and the version this file used to carry (tiebreak by `joined_at`) is retired.
+- Escrevo **só** em `bus/dev.uncle-bob.ndjson`, a minha outbox. Nunca no arquivo de outro papel — falar com alguém é appendar **na própria** outbox com `to` preenchido, e quem me lê lê **a minha**.
+- Ninguém trunca, reescreve ou remove linha, nem toca arquivo alheio.
+- `task` pertence ao `to` até um `done` ou `blocked` com o **mesmo id** — e a resposta sai na minha outbox, não na do architect.
+- **Nunca credencial ou segredo no bus.** NDJSON versionado em git não é canal de segredo — o devops.infra já recusou transitar PAT por aqui exatamente por isso.
 
-**The session does not invent a role.** This repo: `llm-server` joins as `ARCHITECT`; the compiling MacBook as `DEVELOPER`. Allow does not pick the role — `join` declares it. An earlier version of this file told the session to evaluate four conditions itself; that is what [ADR 0002](../../../docs/adr/0002-george-atribui-identidade-e-role-das-sessoes.md) was written to stop.
+### Commit e push
 
-`poll` on a session_id that never joined returns an error asking for `join` — it does not deliver. `join` delivers the full backlog for the squad, deliberately: a message sent before joining is not lost.
+Exceção da ADR-002 do agent-bus: append em `bus/*.ndjson` vai **direto para `main`**, sem branch e sem PR — escritor único por arquivo significa que não há conflito pra um PR mediar. Sempre:
 
-## Leave on session end
+1. `git pull` antes do push (o architect e o devops.infra commitam dos clones deles).
+2. **Uma mensagem por commit**, id no assunto: `📨 chore(bus): dev.uncle-bob-0000NN — <sumário>`.
+3. Nada fora de `bus/*.ndjson` nesse commit — commit misturado perde a exceção.
 
-**Every session should `leave` the bus when it ends** (`/exit`, or any other planned shutdown) — it mirrors `join`. Call it as the last bus action before a planned shutdown. It is hygiene, not cosmetics: a member that never polls again holds `min(last_poll)` down, and the polite prune discards only what *every* member has read, so one dead member freezes retention for the whole squad. `leave` also returns to the queue anything that member had claimed.
+## Quando olhar o bus
 
-**`leave` + `join` is not a reconnect.** Who comes back returns with `last_poll: -1` and gets the whole backlog replayed, and `joined_at` reopens. Fine at end of session, wrong mid-work.
+Nada acorda esta sessão — leitura é pull, sempre. Três gatilhos, o 2 é o que paga:
 
-**It is not a reliable recovery path either.** The prune runs inside `send`, `leave` and `ack` — not inside `poll` — so a third party's `send` between your `leave` and your `join` can discard exactly what you left to re-read. Confirmed by infra against the code; harmless today only because the prune needs 2.000 messages in a squad and we are at ~60. With `peek` the whole manoeuvre is unnecessary.
+1. **Início de sessão.**
+2. **Antes de fechar qualquer decisão com consequência pro outro repo** — escrever ou revisar ADR, abrir PR, finalizar spec. A caixa já pode ter o `blocked` ou a correção que muda o que eu ia registrar.
+3. **Antes de mandar mensagem pro outro repo** — a resposta já pode estar na caixa.
 
-Tools only become callable in the session where the MCP connection was established, so a `leave` shipped mid-session is not callable until the next one. Crash exits cannot be caught at all. If the harness ever gains a `SessionEnd` hook, wire `leave` there instead of relying on remembering it.
+## Duas sessões neste repo
 
-## Delivery is pull, not push — poll at the right moments
+Se uma segunda sessão dev aparecer no MacBook, as duas compartilham `dev.uncle-bob.ndjson` como Manager/Executor (`kind` desempata; regra em `multi-session.md`). **Só o Manager appenda** — o Executor não escreve no canal. O endereço é único qualquer que seja o clima de sessão.
 
-Nothing wakes this session when a message arrives. The trigger that matters is semantic, not temporal:
+## Política (sobrevive íntegra ao descarte do mcp-bus)
 
-1. `poll` at the start of a session.
-2. `poll` **before closing any decision with infra consequence** — writing or revising an ADR, opening a PR, finalising a spec.
-3. `poll` **before every `send`** — the mailbox may already hold the answer, or something that changes what you were about to say.
+**Esta sessão é o único ponto de contato do usuário.** Quando trabalho de infra for preciso:
 
-**Prefer `peek` + `ack` over `poll`.** `peek` does not consume, so a parser slip or a truncated print no longer destroys the message; `ack(ids)` then acknowledges exactly what was handled. `poll` reads and acknowledges in one operation — it cost this session half of an incoming proposal and cost infra whole messages, on the same day. Reach for `poll` only where losing a message would not matter.
+1. Ler o bus primeiro — a resposta pode já estar na caixa.
+2. Mensagem na minha outbox (`to: devops.infra`), enquadrada como vindo do usuário quando veio dele — "George pediu X" — não como iniciativa própria.
+3. Reportar de volta quando a resposta chegar. Nunca fabricar nem prever o que a infra vai fazer — esperar a resposta real.
 
-`poll` reads DMs and `ALL` broadcasts. Pass `claim=true` to also take unclaimed messages addressed to this session's **role** (`Architect`) off the queue — a role message stays unclaimed until some member claims it, so a plain read will not show it.
+**O architect delega o quê; o devops.infra decide o como.** Direção e prioridade podem ser despachadas, inclusive com `ref` pro repo de infra. Implementação, ordem técnica e o que entra naquele repo ficam com ele. Pedidos de `como` vão como proposta, não como orientação.
 
-**Reserve role work before doing it, not after.** `peek` shows an unclaimed role message to *every* holder of that role, and `ack` only registers ownership once the work is done — so two sessions can process the same item and find out afterwards. `claim(ids)` takes it first: a second session trying the same id gets `already claimed`. Reaching for it is optional and only matters when more than one session holds the role, which is exactly when forgetting it hurts. There is no TTL by design — an item held by a session that died stays held until a `leave` releases it, because a stuck item gets noticed and an item that silently returns gets done twice.
+**Nunca mandar o usuário falar com a sessão de infra diretamente.** Já foi tentado e corrigido explicitamente. Exceção: ele **pode** falar direto se escolher — é sessão dele também, não é erro pra sinalizar nem desencorajar; se ele mencionar que falou, só sincronizo estado.
 
-Rule 2 is the one that earns its keep. In a single session, infra sent three messages, two of them mid-conversation; a start-of-session poll alone would have missed both. Never close an infra-consequential decision without having read the mailbox first.
+**FYI de infra só merece resposta se algo do lado da aplicação depender dele** — e aí vira proposta, como qualquer pedido cross-repo.
 
-**Urgent messages get duplicated over `SendMessage` while that channel exists.** The bus wakes nobody; a message only lands when the other side happens to poll. This duplication is a deliberate agreement with infra, not redundancy left behind by accident — do not "tidy it away".
+## Fronteira de domínio
 
-## Gotchas on the bus
-
-**`to` is required, and `send` never fails on an unknown one — read the response instead.** `to` is a session_id (DM), `ALL` (broadcast), or a Role (claim queue). The send is always accepted, deliberately: the message is stored and delivered whenever the target joins, which is what makes the backlog work. The response says whether it actually reached anyone:
-
-- delivered — `delivered_to: ["infra"]`
-- not delivered yet — `delivered_to: []` plus a non-empty `pending_for`, alongside `sessions_in_squad` / `roles_in_squad` and a warning
-
-So a typo (`infra-session` for `infra`) is no longer silent, but it is not an error either — it parks the message for a session that may never exist; the same goes for a Role nobody holds. **Check `delivered_to` on every send**, and treat a non-empty `pending_for` as "this has not arrived". `sessions_in_squad` and `roles_in_squad` come back in the same response, so a target can be confirmed without a second call. Infra reads as `infra`.
-
-**`delivered_to` on a Role `send` means "someone holds that role", not "it is already visible".** A Role message counts as delivered for every member holding it, yet a plain read will not return it until the recipient claims it off the queue. Confirmed by test: a send to `Architect` came back `delivered_to: ["app-design"]` immediately, and a non-claiming read returned nothing until the claiming one ran. The role queue is deliberately independent of the inbox cursor — otherwise a routine read would swallow work without executing it.
-
-**Confirm the target with `list_sessions` before a targeted `send`.** A send can look perfect and reach nobody who is listening: `delivered_to: ["infra"]` was once returned for an orphaned member that no session was reading. That orphan came from a human rename (`infra-claude` → `infra`) that left the old name behind — a one-off decision, *not* bus behaviour, and not something `join` does on its own. Checking the roster costs one call and the send is irreversible.
-
-`list_sessions(squad)` before the first `send` of a session is still the habit — it just stopped being the only defence.
-
-**`leave` + `join` redelivers the whole backlog; a plain re-`join` does not.** A first `join` handing over the full history is deliberate — it is what stops a message sent before joining from being lost — and `leave` + `join` repeats it, because the membership ended and a new one began. A *re*-`join` to fix a role does **not**: measured 2026-09-08 before and after one, `last_poll` held at 39 and `joined_at` did not move.
-
-**Changing role does not redeliver either.** Infra reproduced it on a throwaway session: join as one role, poll, join again as another, peek — cursor held, nothing replayed. Member lookup is `squad + session_id`; role is not part of the key.
-
-Earlier in that same session two re-joins *did* replay six already-read messages, which is why this file briefly claimed the opposite. **The cause is known now, and it was neither.** The bus Deployment ran `RollingUpdate` with `maxSurge: 25%`, which on a single replica rounds *up*: the new pod went Ready before the old one was torn down, both served traffic, and each held its state in memory and rewrote the whole JSON file on every mutation. What one wrote, the other erased. This session's member record was lost in one of those windows, so the next `join` treated it as new and delivered the backlog again — hence ids 0 and 1 arriving twice. Infra fixed it with `strategy: Recreate` (`a1a653a`).
-
-Two things worth carrying from that. First, how far the damage went was **measured, not guessed**: `ack` validates before it mutates and is idempotent, and it distinguishes "message N is addressed to someone else" from "message N does not exist" — which makes it a probe that costs nothing. Infra ran it over the 12 ids its own `send` calls had returned, this session over its 19; all 31 exist. **Confirmed loss is of member records, not of messages.** That is not proof nothing was lost — a message whose id you never learned cannot be probed, and only the sender can probe their own DMs — but a gap in the id sequence is *not* expected from this incident, and should be investigated rather than explained away. Each session can run the same probe over its own ids in a minute.
-
-And second, three plausible explanations were believed and dropped before the real one was found (the `f594f56` bug, the role queue, first-entry backlog); the one that broke the deadlock was noticing that first-entry backlog could not explain ids 0 and 1 arriving *twice*. When an explanation covers most of the evidence but not all of it, it is not the explanation.
-
-Either way, anything polling on a schedule should dedupe on message `id` rather than assume delivery means new: the backlog does come back on `leave` + `join`.
-
-**Tools load at session start.** Registering the MCP server mid-session does not make `join`/`poll`/`send` callable in that session; they appear in the next one.
-
-## This session is the single point of contact
-
-The user should not need to open the infra session himself. When infra work is needed:
-
-1. `poll` first — the answer may already be in the mailbox.
-2. `send` the proposal or request, framed as coming from the user — "George pediu X" — not as this session's own initiative when the user actually asked for it.
-3. Report back when the response arrives. Never fabricate or predict what infra will do — wait for the actual reply.
-
-**Architect delegates the *what*; DEVOPS decides the *how*.** Direction and priority can be delegated, including into the infra repo. Implementation, technical ordering and what lands in that repo stay with the DEVOPS Manager — several good calls this week came from infra refusing or correcting a proposal from this side. The "goes over as a proposal" rule above therefore holds for *how*, not for *what*.
-
-**Never tell the user to go talk to the infra session directly.** That was tried once and corrected explicitly by the user — the whole point of the two-session split is that the user only has to talk to one of them.
-
-Exception: the user *can* talk to it directly if he chooses (that session is his too) — his call, not an error to flag or discourage. If he mentions having done so, just sync state, don't correct him.
-
-## Proactive pushes from infra
-
-Infra messages this session on every push to its repo, saying explicitly when nothing affects the application side. A pure FYI needs no reply. Only answer when something on the application side actually depends on the change — then it becomes a proposal, same as any other cross-session ask.
-
-## Domain boundary
-
-Never write or commit to the infra repo directly, including the local read-only clone at `/home/torgge/bonespirito-cluster-k3s-infra`, kept for reading current state only. That repo is the infra session's domain. Infra-consequential decisions from this side go over as proposals; execution is its call.
+Nunca escrever ou commitar no repo de infra (`../bonespirito-cluster-k3s-infra`), incluindo o clone local — leitura corrente apenas. Esse repo é domínio do `devops.infra`. Decisão com consequência pra lá sai daqui como proposta; a execução é chamada dele.
