@@ -42,6 +42,10 @@ services:
     # precisa do k3s.
     environment:
       - SPRING_PROFILES_ACTIVE=test
+      # HOME é read-only; o Jib escreve o global config em $XDG_CONFIG_HOME —
+      # sem isso, jibBuildTar falha com "Failed to create... global Jib config".
+      - XDG_CONFIG_HOME=/tmp/jib-config
+      - XDG_CACHE_HOME=/tmp/jib-cache
     cap_drop:
       - ALL
     security_opt:

@@ -1,0 +1,32 @@
+# Publicação da imagem do ms-order no GHCR (ADR-026 do bonespirito-cluster-k3s-infra,
+# despacho architect-000035). Jib builda em camadas e empurra via HTTP direto — o
+# cluster não tem Docker em lugar nenhum (nem no nó, ADR-011, nem no agent do
+# Woodpecker), então bootBuildImage está fora.
+#
+# Tag = CI_COMMIT_SHA. O devops.infra troca bases/ms-order/ms-order.yaml
+# (replicas 0->1, tag placeholder->real) quando o pacote publicar — não precisa
+# aviso externo, ele vê o pacote no GHCR.
+#
+# Secrets (Woodpecker, criados na UI/API do próprio Woodpecker — não é o Vault
+# do agent-bus nem do infra):
+#   - ghcr_user  → username do GitHub do dono do pacote (torgge)
+#   - ghcr_token → PAT escopo write:packages; o valor é o
+#                  secret/bonespirito/ghcr do Vault do infra — pegar com o
+#                  devops.infra, nunca gerar token próprio.
+#
+# Só publica push em main: imagem de branch WIP poluiria o GHCR sem consumidor.
+when:
+  - event: push
+    branch: main
+
+steps:
+  - name: publish-image
+    image: gradle:8.10-jdk21
+    directory: app
+    environment:
+      GHCR_USER:
+        from_secret: ghcr_user
+      GHCR_TOKEN:
+        from_secret: ghcr_token
+    commands:
+      - ./gradlew :order:jib --no-daemon
