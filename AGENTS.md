@@ -16,7 +16,7 @@ Dois sem relação: `app/` (domínio) e `doc/transcripts/` (pipeline ASR). Skill
 
 9 bounded contexts em `app/`: **Order**, **Customers**, **Products**, **Pricing**, **Stock**, **Contabil**, **Invoice**, **Route**, **Notifications**. Entrada: [`app/CONTEXT-MAP.md`](app/CONTEXT-MAP.md) (relações) → cada contexto tem `CONTEXT.md` (linguagem ubíqua) + `docs/adr/` (decisões locais) + `src/test/resources/features/` (Gherkin). ADRs de sistema em [`app/docs/adr/`](app/docs/adr/). Diagramas C4 editáveis em [`app/docs/diagrams/`](app/docs/diagrams/).
 
-Implementado hoje: `:order` (Bulk Import: `ImportOrdersController`, parser CSV, policies, Flyway V1–V4) e `:notifications` (só `NotificationsApplication.kt`). 10 de 11 `.feature` em `@pending`.
+Implementado hoje: `:order` (Bulk Import: `ImportOrdersController`, parser CSV, policies, Flyway V1–V4) e `:notifications` (main só tem `NotificationsApplication.kt`). 10 de 11 `.feature` em `@pending` — só `bulk_import` está fora.
 
 ## Comandos
 
@@ -26,9 +26,12 @@ node doc/transcripts/build.mjs
 
 # Domínio (roda no MacBook — única máquina com JVM/Gradle/Node)
 docker compose -f app/compose.yaml run --rm test
+
+# Um teste só — o comando após o nome do serviço substitui o command:
+docker compose -f app/compose.yaml run --rm test ./gradlew :order:test --tests "com.bonespirito.order.domain.policy.ParsedRowTest"
 ```
 
-Não há `./gradlew` na raiz; build é `docker compose -f app/compose.yaml run --rm test`.
+Não há `./gradlew` na raiz; build é `docker compose -f app/compose.yaml run --rm test`. Testes rodam em H2 in-memory (`app/*/src/test/resources/application.yml`) — `check` não precisa do cluster k3s.
 
 ## Convenções que o modelo não deriva
 
@@ -38,7 +41,8 @@ Não há `./gradlew` na raiz; build é `docker compose -f app/compose.yaml run -
 - **Enforcement de contexto de vendor** (ADR-005 do agent-bus): nenhum `CLAUDE.md`/`CLAUDE.local.md` no repo, nenhuma referência viva a `CLAUDE.md` fora de `.vendor-context-allow`. Duas camadas, uma implementação (`scripts/check-vendor-context.sh`, fonte canônica no agent-bus): hook local (`scripts/hooks/pre-commit`, `--staged`) + CI (`.woodpecker/vendor-context.yaml`, `--all`). Instalar o hook **uma vez por clone**: `git config core.hooksPath scripts/hooks` — não vem com o commit.
 - **Build/teste**: só no MacBook (`DEVELOPER`). `ARCHITECT` (llm-server) não compila nem testa; alegação de "funciona" sem evidência não é verificada.
 - **Tracker**: Codeberg Issues (público, GET anônimo). Forgejo REST API. Labels mattpocock. Skill: `.agents/skills/issue-ops/`.
-- **Quality gate**: `detekt` + testes + JaCoCo (LINE≥80% BRANCH≥70%) + ArchUnit + Pitest (domain.policy.*, 80%). Skill: `.agents/skills/quality-gate/`.
+- **Quality gate**: `detekt` + testes + JaCoCo (LINE≥80% BRANCH≥70%) + ArchUnit + Pitest (domain.policy.*, 80%). Pitest fica **fora** do `check` (caro, de propósito) — rode `./gradlew pitest` à parte. Skill: `.agents/skills/quality-gate/`.
+- **Gherkin**: `cucumber.filter.tags=not @pending` — remover a tag `@pending` do cenário é o gesto que o põe no check. Implementação de um cenário começa aí.
 
 ## Fronteiras
 
