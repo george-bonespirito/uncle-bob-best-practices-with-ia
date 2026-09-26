@@ -36,13 +36,12 @@ services:
     working_dir: /app
     volumes:
       - .:/app
+    # Sem SPRING_DATASOURCE_URL/SPRING_KAFKA_BOOTSTRAP_SERVERS aqui de propósito:
+    # os testes sobem com H2 in-memory (app/*/src/test/resources/application.yml),
+    # e env sobrescreveria o datasource com o Postgres do cluster — check não
+    # precisa do k3s.
     environment:
       - SPRING_PROFILES_ACTIVE=test
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:30432/order?sslmode=disable
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=postgres
-      - SPRING_KAFKA_BOOTSTRAP_SERVERS=host.docker.internal:30092
-      - APICURIO_REGISTRY_URL=http://host.docker.internal:30080/apis/registry/v2
     cap_drop:
       - ALL
     security_opt:
@@ -52,7 +51,7 @@ services:
       - /tmp
       - /home/gradle/.gradle
     network_mode: "host"
-    entrypoint: ["./gradlew", "check", "--no-daemon"]
+    command: ["./gradlew", "check", "--no-daemon"]
 
 volumes:
   gradle-cache:
