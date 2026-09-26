@@ -92,3 +92,27 @@ em toda referência. O critério foi a ordem de entrada: a de interfaces entrou 
 mudou. **Nenhuma decisão desta ADR mudou** — só o número e as referências a ele.
 Quem encontrar "ADR raiz 0009" querendo dizer observabilidade em documento antigo,
 ou fora deste repositório, está lendo referência anterior a esta data.
+
+---
+
+## Revisão — 2026-09-25: o COMO da instrumentação segue aberto
+
+Esta ADR e a [spec](../specs/observability-standard.md) decidem **o que** emitir
+(labels indexados, PII proibida por campo, as sete métricas). Nenhuma decide
+**o como**: não há dependência de OpenTelemetry (agente Java nem SDK) em nenhum
+`build.gradle.kts`, nem variável `OTEL_*` em lugar nenhum do repositório —
+conferido em 2026-09-25, não deduzido.
+
+Registro aqui para a lacuna não sumir em silêncio quando o loop container
+(`#70`: Dockerfile/compose.yaml) fechar sem instrumentação, e a imagem sair sem
+trace nem log estruturado. É decisão futura, não tomada — e inclui:
+
+- agente Java (`-javaagent:opentelemetry-javaagent.jar`) vs SDK manual;
+- endpoint do Collector (hoje a infra entrega Alloy + Loki, ADR-019 do repo de
+  infra; o encaminhamento OTel é outro contrato);
+- variáveis de ambiente de runtime/Dockerfile (`OTEL_SERVICE_NAME`,
+  `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_RESOURCE_ATTRIBUTES`).
+
+Gatilho para revisitar: quando a imagem existir (fecho do `#70`) ou quando
+alguém for de fato rodar em produção. Até lá, o padrão define o contrato sem o
+transporte — e não deve parecer mais completo do que está.
