@@ -11,6 +11,7 @@ dependencies {
     "implementation"(libs.flyway.core)
 
     "runtimeOnly"(libs.postgresql)
+    "runtimeOnly"(libs.flyway.database.postgresql)
 
     "testRuntimeOnly"(libs.h2)
 }
