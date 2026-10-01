@@ -15,3 +15,4 @@ rootProject.name = "order-processing"
 
 include(":order")
 include(":notifications")
+include(":customers")
