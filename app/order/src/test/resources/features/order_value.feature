@@ -1,4 +1,3 @@
-@pending
 Feature: Valor do Order — total derivado e preço congelado
 
   Como sistema
@@ -18,6 +17,8 @@ Feature: Valor do Order — total derivado e preço congelado
     Then o total do Order passa a considerar apenas os itens 1 e 2
     And nenhum passo de recálculo precisou ser disparado
 
+  # motivo: depende da Invoice Generation e de um cliente do MS Pricing, que não existem ainda (Conductor/Kafka).
+  @pending
   Scenario: Preço não é reconferido antes de faturar
     Given um Order "#123" com o item 1 precificado em 10,00
     And o Unit Price do SKU do item 1 mudou para 12,00 no MS Pricing
@@ -26,6 +27,8 @@ Feature: Valor do Order — total derivado e preço congelado
     And a fatura usa 10,00
     And nenhuma consulta de preço é feita ao MS Pricing
 
+  # motivo: depende da task Pricing Enrichment e da transição de Order Status via Conductor, que não existem ainda.
+  @pending
   Scenario: SKU sem preço trava o Order, como cliente e produto inexistentes
     Given um Order "#123" em "PROCESSING" com um SKU sem preço cadastrado no MS Pricing
     When a task "Pricing Enrichment" reporta Price Not Found
@@ -33,6 +36,8 @@ Feature: Valor do Order — total derivado e preço congelado
     And o Order não é cancelado
     And nenhuma ação compensatória é disparada
 
+  # motivo: depende do resultado da task Pricing Enrichment (Conductor); a policy de total já trata unit_price 0,00 como preço (OrderTotalTest).
+  @pending
   Scenario: Preço zero é preço, não ausência de preço
     Given um Order "#123" com um SKU cujo Unit Price cadastrado é 0,00
     When a task "Pricing Enrichment" reporta o resultado
