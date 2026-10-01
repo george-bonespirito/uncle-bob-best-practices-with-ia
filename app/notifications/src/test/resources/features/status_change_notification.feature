@@ -1,10 +1,11 @@
-@pending
 Feature: Notificação ao cliente a cada mudança de status do pedido
 
   Como cliente que fez um pedido
   Quero ser avisado via WhatsApp quando o status do meu pedido mudar
   Para acompanhar o andamento sem precisar consultar o sistema
 
+  # @pending — consumo do CDC (Kafka) e envio via Meta ficam fora desta frente (architect-000055)
+  @pending
   Scenario: Cliente recebe WhatsApp quando o status do Order muda
     Given um Order "#123" com status "PENDING" e cliente com WhatsApp cadastrado
     When o status do Order muda para "PROCESSING"
@@ -29,6 +30,8 @@ Feature: Notificação ao cliente a cada mudança de status do pedido
     Then nenhuma mensagem WhatsApp é enviada
     And a razão é que "PENDING" é o estado inicial, não uma mudança de status
 
+  # @pending — Contact Lookup (consulta síncrona ao MS Customers) fora desta frente (architect-000055)
+  @pending
   Scenario: Cliente é notificado no número atual, não no do momento do pedido
     Given um Order "#123" cujo cliente trocou de número de WhatsApp depois do pedido criado
     When o status do Order muda para "PROCESSING"
@@ -54,6 +57,8 @@ Feature: Notificação ao cliente a cada mudança de status do pedido
     And a deduplicação usa a chave (order_id, novo_status)
     And a razão é que o offset muda no reprocessamento e não serve como chave
 
+  # @pending — Meta Cloud API, retry e DLT fora desta frente (architect-000055)
+  @pending
   Scenario: Falha de envio não afeta o Order
     Given um Order "#123" que mudou para "COMPLETED"
     And a Meta Cloud API está indisponível
@@ -82,6 +87,8 @@ Feature: Notificação ao cliente a cada mudança de status do pedido
     When o status do Order muda para "COMPLETED"
     Then o template usado é o de conclusão, não o variante
 
+  # @pending — prova exige ausência de cliente REST/consumo de order_items: arquitetura, não policy pura (architect-000055)
+  @pending
   Scenario: A escolha do template não consulta o Order nem lê os itens
     Given um Order "#123" que mudou para "COMPLETED" com um item não atendido
     When MS Notifications monta a mensagem
