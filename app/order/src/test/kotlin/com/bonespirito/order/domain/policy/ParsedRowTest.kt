@@ -32,6 +32,39 @@ class ParsedRowTest {
         assertThat(result).isEqualTo(ParsedRow.Invalid(1, "source_system_code ausente"))
     }
 
+    // A última coluna presente é a fronteira de getOrElse: uma linha truncada logo depois
+    // dela precisa apontar a próxima coluna ausente, não a última que existe.
+    @Test
+    fun `linha truncada apos source_system_code aponta source_order_number ausente`() {
+        val result = validateRow(1, validColumns.take(1))
+
+        assertThat(result).isEqualTo(ParsedRow.Invalid(1, "source_order_number ausente"))
+    }
+
+    @Test
+    fun `linha truncada apos source_order_number aponta customer_id ausente`() {
+        val result = validateRow(1, validColumns.take(2))
+
+        assertThat(result).isEqualTo(ParsedRow.Invalid(1, "customer_id ausente"))
+    }
+
+    @Test
+    fun `linha truncada apos customer_id aponta sku ausente`() {
+        val result = validateRow(1, validColumns.take(3))
+
+        assertThat(result).isEqualTo(ParsedRow.Invalid(1, "sku ausente"))
+    }
+
+    @Test
+    fun `linha truncada apos sku trata quantity ausente como formato invalido`() {
+        val result = validateRow(7, validColumns.take(5))
+
+        assertThat(result).isInstanceOf(ParsedRow.Invalid::class.java)
+        val invalid = result as ParsedRow.Invalid
+        assertThat(invalid.rowNumber).isEqualTo(7)
+        assertThat(invalid.reason).startsWith("linha em formato inválido")
+    }
+
     @Test
     fun `source_system_code ausente vira ParsedRow Invalid`() {
         val columns = validColumns.toMutableList().apply { this[0] = "" }
