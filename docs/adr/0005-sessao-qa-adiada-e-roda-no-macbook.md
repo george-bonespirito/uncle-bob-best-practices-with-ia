@@ -36,3 +36,30 @@ Registrado como lacuna no tracker. Enquanto não existir, "onde o QA roda" é um
 - Se o compose existir, esta decisão deve ser revisitada — a restrição que a sustenta desaparece.
 
 Status: accepted
+
+## Nota 2026-10-02: o papel QA deixou de estar adiado
+
+A decisão "não levantar sessão QA agora" foi superada. George reatribuiu a sessão
+`kimi-k3` (opencode) de `DEVELOPER` para `QA`, e a sessão já escreve em
+`bus/qa.ndjson` (`qa-000001`). O ARCHITECT despachou a primeira task de QA em
+`architect-000072`: verificar sobre o `main` as três frentes de `domain.policy`
+mergeadas (uncle-bob#80, #81 e #82).
+
+Duas premissas do corpo desta ADR deixaram de valer:
+
+- **"Não há trabalho para ela."** Havia um motivo concreto para adiar; ele caiu
+  quando as frentes `:order`, `:notifications` e `:customers` saíram do `@pending`
+  e passaram a ter evidência a conferir (Pitest, check completo, qualidade dos
+  cenários).
+- **"Não existe `Dockerfile` nem `compose.yaml`."** Existem em `app/` (issue #70).
+  O corpo desta ADR já previa a consequência: "se o compose existir, esta decisão
+  deve ser revisitada — a restrição que a sustenta desaparece".
+
+O que não muda: **QA roda no MacBook, em worktree próprio** (ADR 0004). O
+`llm-server` continua sem JVM, Gradle, Node e Docker, e o cluster continua sendo
+lugar de container, não de sessão de agente. A existência do compose abre a
+alternativa "QA em qualquer máquina, dentro de container", mas esta nota não a
+adota: onde o QA roda segue como está até alguém decidir revisitar.
+
+Esta ADR continua `accepted`; o que foi superado é o adiamento, não a regra de
+onde a sessão roda.
