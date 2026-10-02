@@ -1,0 +1,11 @@
+package com.bonespirito.products
+
+import org.junit.jupiter.api.Test
+import org.springframework.boot.test.context.SpringBootTest
+
+@SpringBootTest
+class ProductsApplicationTest {
+
+    @Test
+    fun `o contexto sobe`() = Unit
+}
