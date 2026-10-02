@@ -17,7 +17,7 @@ Compromisso de unidades de um SKU com um Order específico. Tem identidade próp
 _Avoid_: bloqueio, alocação, separação (é operação de armazém, coisa diferente), baixa de estoque
 
 **Stock Validation**:
-A Processing Step do Order que este contexto executa: dado o conjunto de itens atendidos de um Order, reserva tudo ou não reserva nada. É **hard-blocking** — falta de estoque cancela o pedido, ao contrário de produto inativo, que apenas deixa o item de fora ([ADR order/0014](../order/docs/adr/0014-out-of-stock-cancels-order.md)).
+A Processing Step do Order que este contexto executa: dado o conjunto de itens atendidos de um Order, reserva tudo ou não reserva nada. Itens do conjunto com o mesmo SKU contam pela **soma** das quantidades contra a [Available Quantity](#): duas linhas que cabem sozinhas, mas estouram juntas, são [Out of Stock](#), não duas reservas válidas. É **hard-blocking** — falta de estoque cancela o pedido, ao contrário de produto inativo, que apenas deixa o item de fora ([ADR order/0014](../order/docs/adr/0014-out-of-stock-cancels-order.md)).
 _Avoid_: consulta de estoque (não é consulta, é reserva), verificação de disponibilidade, Data Enrichment (a Stock Validation vem depois e não é enriquecimento)
 
 **Out of Stock**:
