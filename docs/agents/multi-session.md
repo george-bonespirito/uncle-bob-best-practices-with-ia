@@ -186,9 +186,8 @@ Pendências conhecidas, nesta ordem: runtime do cursor no `agent-bus`; e a remo�
 recursos no cluster, com o DEVOPS. (A reescrita da skill `infra-relay` saiu desta
 lista em 2026-09-26 — PR #76.)
 
-**QA (2026-09-19):** nenhuma sessão QA jamais entrou no squad, e ela fica **adiada**
-— não há trabalho para ela enquanto 10 dos 11 `.feature` estiverem `@pending` e o
-e2e da Saga seguir bloqueado. Quando existir, roda **no MacBook, em worktree
-próprio** ([ADR 0005](../adr/0005-sessao-qa-adiada-e-roda-no-macbook.md)): é a única
-máquina com JVM e Gradle, e duas sessões no mesmo repo e máquina é o caso da
-[ADR 0004](../adr/0004-worktree-isolado-por-sessao.md).
+**QA (2026-10-02):** o adiamento de 2026-09-19 acabou — George reatribuiu a sessão
+`kimi-k3` de `DEVELOPER` para `QA` (`qa-000001`). Ela roda **no MacBook, em
+worktree próprio** ([ADR 0005](../adr/0005-sessao-qa-adiada-e-roda-no-macbook.md),
+nota de 2026-10-02): é a única máquina com JVM e Gradle, e duas sessões no mesmo
+repo e máquina é o caso da [ADR 0004](../adr/0004-worktree-isolado-por-sessao.md).
