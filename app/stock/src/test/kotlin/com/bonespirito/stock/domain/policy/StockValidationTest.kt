@@ -67,6 +67,26 @@ class StockValidationTest {
         assertThat(notReserved.outOfStock).containsExactly(OutOfStockItem("SKU-1", requested = 10, available = 4))
     }
 
+    // equals de data class não chama os getters: estas asserções leem cada campo do
+    // resultado real, que é o que o Order vai consumir.
+    @Test
+    fun `Out of Stock expoe sku, quantidade pedida e quantidade disponivel`() {
+        val result = outcome(state("SKU-1" to 10), "SKU-1" to 11) as StockValidationResult.NotReserved
+
+        val item = result.outOfStock.single()
+
+        assertThat(item.sku).isEqualTo("SKU-1")
+        assertThat(item.requested).isEqualTo(11)
+        assertThat(item.available).isEqualTo(10)
+    }
+
+    @Test
+    fun `Stock Record Not Found expoe os SKUs sem registro`() {
+        val result = outcome(state("SKU-1" to 10), "SKU-8" to 1, "SKU-9" to 2) as StockValidationResult.NotReserved
+
+        assertThat(result.stockRecordNotFound).containsExactly("SKU-8", "SKU-9")
+    }
+
     @Test
     fun `falta em um item recusa o conjunto inteiro, listando so o que faltou`() {
         val result = outcome(state("SKU-1" to 10, "SKU-2" to 2, "SKU-3" to 9), "SKU-1" to 3, "SKU-2" to 5, "SKU-3" to 9)
