@@ -1,5 +1,9 @@
 package com.bonespirito.order.application
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.bonespirito.order.application.port.ImportBatchRepository
 import com.bonespirito.order.application.port.ImportBatchRowErrorRepository
 import com.bonespirito.order.application.port.ImportFileParser
@@ -18,7 +22,10 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
@@ -33,6 +40,20 @@ class ImportOrdersServiceTest {
     private val parser = mockk<ImportFileParser>()
     private val executor = Executors.newSingleThreadExecutor()
     private val service = ImportOrdersService(importBatches, orders, rowErrors, parser, executor)
+
+    private val serviceLogger = LoggerFactory.getLogger(ImportOrdersService::class.java) as Logger
+    private val logs = ListAppender<ILoggingEvent>()
+
+    @BeforeEach
+    fun capturaLogs() {
+        logs.start()
+        serviceLogger.addAppender(logs)
+    }
+
+    @AfterEach
+    fun soltaLogs() {
+        serviceLogger.detachAppender(logs)
+    }
 
     @Test
     fun `aceita o upload, persiste o batch como PENDING com a contagem de linhas e devolve o id`() {
@@ -159,6 +180,72 @@ class ImportOrdersServiceTest {
         assertThat(saved.captured.items).hasSize(1)
         assertThat(saved.captured.items.single().sku).isEqualTo("SKU-1")
         assertThat(saved.captured.items.single().quantity).isEqualTo(5)
+    }
+
+    @Test
+    fun `ao iniciar o processamento o batch passa a PROCESSING antes de ler o arquivo`() {
+        val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-5"))
+        val statusesSalvos = mutableListOf<ImportBatchStatus>()
+        var statusDuranteOParse: ImportBatchStatus? = null
+        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.save(any()) } answers {
+            statusesSalvos += firstArg<ImportBatch>().status
+            batch
+        }
+        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { orders.findAll() } returns emptyList()
+        every { parser.parse(any()) } answers {
+            statusDuranteOParse = batch.status
+            emptyList()
+        }
+
+        service.startImport("orders.csv", "header".byteInputStream())
+        executor.shutdown()
+        executor.awaitTermination(1, TimeUnit.SECONDS)
+
+        assertThat(statusDuranteOParse).isEqualTo(ImportBatchStatus.PROCESSING)
+        assertThat(statusesSalvos).containsExactly(
+            ImportBatchStatus.PENDING,
+            ImportBatchStatus.PROCESSING,
+            ImportBatchStatus.COMPLETED,
+        )
+    }
+
+    @Test
+    fun `falha inesperada no processamento marca o batch como FAILED e registra o erro no log`() {
+        val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-6"))
+        val falha = IllegalStateException("banco fora do ar")
+        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.save(any()) } returns batch
+        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { parser.parse(any()) } throws falha
+
+        service.startImport("orders.csv", "header\nrow1".byteInputStream())
+        executor.shutdown()
+        executor.awaitTermination(1, TimeUnit.SECONDS)
+
+        assertThat(batch.status).isEqualTo(ImportBatchStatus.FAILED)
+        assertThat(batch.completedAt).isNotNull()
+        verify { importBatches.save(match { it.id == batch.id && it.status == ImportBatchStatus.FAILED }) }
+        val erro = logs.list.single { it.level == Level.ERROR }
+        assertThat(erro.formattedMessage).contains(batch.id.toString())
+        assertThat(erro.throwableProxy.message).isEqualTo("banco fora do ar")
+    }
+
+    @Test
+    fun `se nem marcar FAILED for possivel, registra as duas falhas no log sem deixar a excecao escapar`() {
+        val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-7"))
+        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.save(any()) } returns batch
+        every { importBatches.findById(batch.id) } throws IllegalStateException("banco fora do ar")
+
+        service.startImport("orders.csv", "header\nrow1".byteInputStream())
+        executor.shutdown()
+        executor.awaitTermination(1, TimeUnit.SECONDS)
+
+        val erros = logs.list.filter { it.level == Level.ERROR }
+        assertThat(erros).hasSize(2)
+        assertThat(erros).allSatisfy { assertThat(it.formattedMessage).contains(batch.id.toString()) }
     }
 
     @Test

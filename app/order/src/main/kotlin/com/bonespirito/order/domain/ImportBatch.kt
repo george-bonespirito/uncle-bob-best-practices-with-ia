@@ -12,7 +12,7 @@ import jakarta.persistence.Table
 import java.time.Instant
 import java.util.UUID
 
-enum class ImportBatchStatus { PENDING, PROCESSING, COMPLETED, COMPLETED_WITH_ERRORS }
+enum class ImportBatchStatus { PENDING, PROCESSING, COMPLETED, COMPLETED_WITH_ERRORS, FAILED }
 
 @Embeddable
 data class ImportProgress(
@@ -43,8 +43,17 @@ class ImportBatch(
     val createdAt: Instant = Instant.now(),
     var completedAt: Instant? = null,
 ) {
+    fun start() {
+        status = ImportBatchStatus.PROCESSING
+    }
+
     fun finish(hasErrors: Boolean) {
         status = if (hasErrors) ImportBatchStatus.COMPLETED_WITH_ERRORS else ImportBatchStatus.COMPLETED
+        completedAt = Instant.now()
+    }
+
+    fun fail() {
+        status = ImportBatchStatus.FAILED
         completedAt = Instant.now()
     }
 }
