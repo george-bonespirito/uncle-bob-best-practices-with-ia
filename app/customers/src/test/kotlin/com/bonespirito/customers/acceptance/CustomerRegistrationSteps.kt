@@ -18,6 +18,7 @@ class CustomerRegistrationSteps {
     private lateinit var customerDocument: Document
     private var customer: Customer? = null
     private var firstAddress: DeliveryAddress? = null
+    private var creationFailure: Throwable? = null
 
     @Given("o documento {string}")
     fun oDocumento(digits: String) {
@@ -80,14 +81,18 @@ class CustomerRegistrationSteps {
 
     @When("tento criar o Customer sem nenhum Delivery Address")
     fun tentoCriarSemEndereco() {
-        customer = runCatching {
+        val attempt = runCatching {
             Customer.create(customerName, customerDocument, firstAddress = null)
-        }.getOrNull()
+        }
+        customer = attempt.getOrNull()
+        creationFailure = attempt.exceptionOrNull()
     }
 
     @Then("a criação é recusada por ausência de Delivery Address")
     fun criacaoRecusada() {
         assertThat(customer).isNull()
+        assertThat(creationFailure).isInstanceOf(IllegalArgumentException::class.java)
+        assertThat(creationFailure).hasMessage("Customer precisa de pelo menos um Delivery Address")
     }
 
     @When("um segundo Delivery Address é registrado")
