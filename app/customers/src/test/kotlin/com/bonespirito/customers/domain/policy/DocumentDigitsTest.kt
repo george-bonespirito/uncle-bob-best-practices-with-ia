@@ -7,7 +7,20 @@ class DocumentDigitsTest {
 
     @Test
     fun `CPF com DV valido vira Valid`() {
-        assertThat(validateDocument("52998224725")).isEqualTo(DocumentDigits.Valid("52998224725"))
+        val result = validateDocument("52998224725")
+
+        assertThat(result).isEqualTo(DocumentDigits.Valid("52998224725"))
+        assertThat((result as DocumentDigits.Valid).digits).isEqualTo("52998224725")
+    }
+
+    @Test
+    fun `CPF com resto 2 no DV vira 9 — boundary rest == 2`() {
+        // 00000000191: dv1 sai de rest == 2, que não é < 2, então dv = 11 - 2 = 9.
+        // Distingue rest < 2 de rest <= 2 (boundary do checkDigit).
+        val result = validateDocument("00000000191")
+
+        assertThat(result).isEqualTo(DocumentDigits.Valid("00000000191"))
+        assertThat((result as DocumentDigits.Valid).digits).isEqualTo("00000000191")
     }
 
     @Test
