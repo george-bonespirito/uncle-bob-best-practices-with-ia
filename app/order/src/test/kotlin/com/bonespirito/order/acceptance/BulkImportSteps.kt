@@ -47,6 +47,13 @@ class BulkImportSteps(
         fixture = "fixtures/three_orders_unknown_customer.csv"
     }
 
+    @Given("uma planilha .csv com um pedido que o banco recusa ao gravar \\(source_system_code maior que a coluna\\)")
+    fun planilhaQueOBancoRecusaAoGravar() {
+        // source_system_code com 60 caracteres passa na validação de linha, mas estoura o
+        // VARCHAR(50) de orders.source_system_code (V2) — falha real, fora do caminho feliz.
+        fixture = "fixtures/order_rejected_by_database.csv"
+    }
+
     @Given("uma planilha .csv já importada com sucesso")
     fun planilhaJaImportadaComSucesso() {
         val uploadResponse = upload()
@@ -210,7 +217,7 @@ class BulkImportSteps(
                 "http://localhost:$port/imports/orders/$importBatchId",
                 Map::class.java,
             )
-            if (statusResponse.body?.get("status") != "PENDING") return statusResponse
+            if (statusResponse.body?.get("status") !in STATUS_EM_ANDAMENTO) return statusResponse
             Thread.sleep(50)
         }
         error("import batch $importBatchId não concluiu o processamento a tempo")
@@ -219,5 +226,9 @@ class BulkImportSteps(
     private fun parseMetodoEEndpoint(texto: String): Pair<String, String> {
         val (metodo, caminho) = texto.split(" ", limit = 2)
         return metodo to caminho
+    }
+
+    private companion object {
+        val STATUS_EM_ANDAMENTO = setOf("PENDING", "PROCESSING")
     }
 }

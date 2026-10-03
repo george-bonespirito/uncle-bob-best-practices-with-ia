@@ -17,6 +17,7 @@ import com.bonespirito.order.domain.policy.ParsedRow
 import com.bonespirito.order.domain.policy.groupIntoOrders
 import com.bonespirito.order.domain.policy.mergeQuantitiesBySku
 import com.bonespirito.order.domain.policy.partitionByDuplicate
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.io.InputStream
 import java.security.MessageDigest
@@ -65,7 +66,38 @@ class ImportOrdersService(
             )
         }.orElse(null)
 
+    /**
+     * Roda no executor em background: exceção que escapasse daqui seria engolida pelo
+     * `Future` descartado e o lote ficaria `PENDING` para sempre. Por isso esta é a
+     * fronteira que captura qualquer falha, registra no log e encerra o lote em `FAILED`.
+     */
+    @Suppress("TooGenericExceptionCaught")
     private fun process(importBatchId: UUID, bytes: ByteArray) {
+        try {
+            updateBatch(importBatchId) { it.start() }
+            importRows(importBatchId, bytes)
+        } catch (e: Exception) {
+            log.error("Import Batch {} falhou no processamento; marcando como FAILED", importBatchId, e)
+            markFailed(importBatchId)
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun markFailed(importBatchId: UUID) {
+        try {
+            updateBatch(importBatchId) { it.fail() }
+        } catch (e: Exception) {
+            log.error("Import Batch {} não pôde ser marcado como FAILED", importBatchId, e)
+        }
+    }
+
+    private fun updateBatch(importBatchId: UUID, change: (ImportBatch) -> Unit) {
+        val batch = importBatches.findById(importBatchId).orElseThrow()
+        change(batch)
+        importBatches.save(batch)
+    }
+
+    private fun importRows(importBatchId: UUID, bytes: ByteArray) {
         val parsedRows = parser.parse(bytes.inputStream())
         val validRows = parsedRows.filterIsInstance<ParsedRow.Valid>().map { it.numberedRow }
         val invalidRows = parsedRows.filterIsInstance<ParsedRow.Invalid>()
@@ -81,14 +113,14 @@ class ImportOrdersService(
             partition.duplicates.flatMap { it.toDuplicateRowErrors(importBatchId) }
         rowErrorsToSave.forEach { rowErrors.save(it) }
 
-        val batch = importBatches.findById(importBatchId).orElseThrow()
-        batch.progress = batch.progress.copy(
-            processedRows = parsedRows.size,
-            ordersCreated = partition.new.size,
-            rowErrorCount = rowErrorsToSave.size,
-        )
-        batch.finish(hasErrors = rowErrorsToSave.isNotEmpty())
-        importBatches.save(batch)
+        updateBatch(importBatchId) { batch ->
+            batch.progress = batch.progress.copy(
+                processedRows = parsedRows.size,
+                ordersCreated = partition.new.size,
+                rowErrorCount = rowErrorsToSave.size,
+            )
+            batch.finish(hasErrors = rowErrorsToSave.isNotEmpty())
+        }
     }
 
     private fun fingerprintOf(bytes: ByteArray): String =
@@ -117,4 +149,8 @@ class ImportOrdersService(
 
     private fun ParsedRow.Invalid.toRowError(importBatchId: UUID) =
         ImportBatchRowError(importBatchId = importBatchId, rowNumber = rowNumber, reason = reason)
+
+    private companion object {
+        val log = LoggerFactory.getLogger(ImportOrdersService::class.java)
+    }
 }

@@ -21,7 +21,7 @@ class Hooks(private val jdbcTemplate: JdbcTemplate) {
         val deadline = System.currentTimeMillis() + 5_000
         while (System.currentTimeMillis() < deadline) {
             val pendentes = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM import_batches WHERE status = 'PENDING'",
+                "SELECT COUNT(*) FROM import_batches WHERE status IN ('PENDING', 'PROCESSING')",
                 Int::class.java,
             ) ?: 0
             if (pendentes == 0) return

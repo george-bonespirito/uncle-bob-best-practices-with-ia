@@ -80,6 +80,25 @@ class ImportOrdersControllerTest {
     }
 
     @Test
+    fun `devolve FAILED quando o processamento do batch falhou`() {
+        val batchId = UUID.randomUUID()
+        every { importBatchStatus.findStatus(batchId) } returns
+            ImportBatchStatusView(
+                batchId,
+                ImportBatchStatus.FAILED,
+                totalRows = 3,
+                processedRows = 0,
+                ordersCreated = 0,
+                rowErrorCount = 0,
+            )
+
+        val response = controller.status(batchId)
+
+        assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+        assertThat(response.body?.status).isEqualTo("FAILED")
+    }
+
+    @Test
     fun `devolve 404 quando o batch nao existe`() {
         val batchId = UUID.randomUUID()
         every { importBatchStatus.findStatus(batchId) } returns null

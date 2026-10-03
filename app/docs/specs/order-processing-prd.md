@@ -209,7 +209,7 @@ Order é aggregate root; `order_items` é tabela filha (N produtos por pedido �
 |---|---|
 | `id` | PK, é o `importBatchId` do contrato REST |
 | `file_fingerprint` | hash do conteúdo do arquivo, `UNIQUE` — reenvio do mesmo arquivo é recusado no upload (`409`), sem criar batch |
-| `status` | `PENDING` \| `PROCESSING` \| `COMPLETED` \| `COMPLETED_WITH_ERRORS` |
+| `status` | `PENDING` \| `PROCESSING` \| `COMPLETED` \| `COMPLETED_WITH_ERRORS` \| `FAILED` (falha inesperada no processamento — ADR order/0004, revisão 2026-10-03) |
 | `total_rows`, `processed_rows`, `orders_created` | contadores, atualizados durante o processamento |
 | `file_name` | rastreabilidade |
 | `created_at`, `completed_at` | `completed_at` nullable até terminar |
@@ -239,7 +239,7 @@ Planilha denormalizada: cabeçalho (`source_system_code`, `source_order_number`,
 ```json
 {
   "importBatchId": "uuid",
-  "status": "PENDING | PROCESSING | COMPLETED | COMPLETED_WITH_ERRORS",
+  "status": "PENDING | PROCESSING | COMPLETED | COMPLETED_WITH_ERRORS | FAILED",
   "totalRows": 50000,
   "processedRows": 50000,
   "ordersCreated": 12000,

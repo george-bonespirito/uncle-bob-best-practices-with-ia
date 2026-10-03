@@ -42,3 +42,8 @@ Feature: Importação em massa de pedidos via planilha
     When uma nova planilha traz uma linha com o mesmo source_system_code e source_order_number
     Then essa linha é reportada em import_batch_row_errors como duplicata
     And nenhum Order novo é criado para essa linha
+
+  Scenario: Falha inesperada no processamento encerra o lote em FAILED, nunca preso em PENDING
+    Given uma planilha .csv com um pedido que o banco recusa ao gravar (source_system_code maior que a coluna)
+    When o usuário faz upload e aguarda o processamento terminar
+    Then o status final é "FAILED"
