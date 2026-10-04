@@ -1,6 +1,5 @@
 package com.bonespirito.order
 
-import com.bonespirito.order.application.port.ImportBatchRepository
 import com.tngtech.archunit.core.domain.JavaClass
 import com.tngtech.archunit.core.domain.JavaClass.Predicates.belongToAnyOf
 import com.tngtech.archunit.core.importer.ClassFileImporter
@@ -20,10 +19,8 @@ import org.junit.jupiter.api.Test
  *   para dentro: infra → application → domain.
  * - `application` também não depende do mecanismo de persistência (Spring Data,
  *   JPA, Hibernate, JDBC): pela ADR 0009 o port é interface pura e o adapter
- *   `Jpa*` mora em `infra`. Hoje o `ImportBatchRepository` de `application.port`
- *   estende `JpaRepository` direto — violação que já existia quando a regra
- *   entrou. Fica como exceção nomeada em [EXCECOES_PERSISTENCIA]; corrigir é
- *   outro PR, não este.
+ *   `Jpa*` mora em `infra`. Os três repositories de `application.port` já
+ *   são interface pura; [EXCECOES_PERSISTENCIA] ficou vazia.
  */
 class OrderArchitectureTest {
 
@@ -105,13 +102,7 @@ class OrderArchitectureTest {
             "javax.sql..",
         )
 
-        private const val MOTIVO_JPA_REPOSITORY =
-            "port estende JpaRepository (Spring Data) em vez de interface pura com adapter Jpa* " +
-                "em infra (ADR 0009); já existia quando a regra entrou, corrige em PR próprio"
-
         /** Classe → motivo. Violação que já existia no código; não corrigida neste PR. */
-        val EXCECOES_PERSISTENCIA: Map<Class<*>, String> = mapOf(
-            ImportBatchRepository::class.java to MOTIVO_JPA_REPOSITORY,
-        )
+        val EXCECOES_PERSISTENCIA: Map<Class<*>, String> = emptyMap()
     }
 }

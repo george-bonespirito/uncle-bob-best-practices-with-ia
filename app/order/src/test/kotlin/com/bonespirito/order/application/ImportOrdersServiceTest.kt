@@ -30,7 +30,6 @@ import org.springframework.transaction.support.SimpleTransactionStatus
 import org.springframework.transaction.support.TransactionCallback
 import org.springframework.transaction.support.TransactionOperations
 import java.time.Instant
-import java.util.Optional
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -64,7 +63,7 @@ class ImportOrdersServiceTest {
         val saved = slot<ImportBatch>()
         every { importBatches.findByUploadedFileFingerprint(any()) } returns null
         every { importBatches.save(capture(saved)) } answers { saved.captured }
-        every { importBatches.findById(any()) } returns Optional.empty()
+        every { importBatches.findById(any()) } returns null
         every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
         every { parser.parse(any()) } returns emptyList()
 
@@ -93,7 +92,7 @@ class ImportOrdersServiceTest {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-1"))
         every { importBatches.findByUploadedFileFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
-        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
         every { orders.save(any()) } answers { firstArg() }
         every { parser.parse(any()) } returns listOf(
@@ -117,7 +116,7 @@ class ImportOrdersServiceTest {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-2"))
         every { importBatches.findByUploadedFileFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
-        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
         every { orders.save(any()) } answers { firstArg() }
         every { rowErrors.save(any()) } answers { firstArg() }
@@ -144,7 +143,7 @@ class ImportOrdersServiceTest {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-3"))
         every { importBatches.findByUploadedFileFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
-        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers("ERP-SAP", listOf("PO-123")) } returns listOf("PO-123")
         every { rowErrors.save(any()) } answers { firstArg() }
         every { parser.parse(any()) } returns listOf(ParsedRow.Valid(numberedRow(1, "PO-123", "SKU-9", 3)))
@@ -168,7 +167,7 @@ class ImportOrdersServiceTest {
         val saved = mutableListOf<Order>()
         every { importBatches.findByUploadedFileFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
-        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers("ERP-SAP", listOf("PO-123")) } returns listOf("PO-123")
         every { orders.findExistingSourceOrderNumbers("ERP-OUTRO", listOf("PO-123")) } returns emptyList()
         every { orders.save(capture(saved)) } answers { firstArg() }
@@ -193,7 +192,7 @@ class ImportOrdersServiceTest {
         val blocosConsultados = mutableListOf<Int>()
         every { importBatches.findByUploadedFileFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
-        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers("ERP-SAP", any()) } answers {
             blocosConsultados += secondArg<Collection<String>>().size
             emptyList()
@@ -218,7 +217,7 @@ class ImportOrdersServiceTest {
             gravacoes += "batch ${firstArg<ImportBatch>().status}" to transacao.aberta
             batch
         }
-        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
         every { orders.save(any()) } answers {
             gravacoes += "order" to transacao.aberta
@@ -256,7 +255,7 @@ class ImportOrdersServiceTest {
             gravacoes += firstArg<ImportBatch>().status to transacao.aberta
             batch
         }
-        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
         every { orders.save(any()) } throws IllegalStateException("valor maior que a coluna")
         every { parser.parse(any()) } returns listOf(ParsedRow.Valid(numberedRow(1, "PO-001", "SKU-1", 2)))
@@ -299,7 +298,7 @@ class ImportOrdersServiceTest {
         val saved = slot<Order>()
         every { importBatches.findByUploadedFileFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
-        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
         every { orders.save(capture(saved)) } answers { saved.captured }
         every { parser.parse(any()) } returns listOf(
@@ -326,7 +325,7 @@ class ImportOrdersServiceTest {
             statusesSalvos += firstArg<ImportBatch>().status
             batch
         }
-        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
         every { parser.parse(any()) } answers {
             statusDuranteOParse = batch.status
@@ -351,7 +350,7 @@ class ImportOrdersServiceTest {
         val falha = IllegalStateException("banco fora do ar")
         every { importBatches.findByUploadedFileFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
-        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { importBatches.findById(batch.id) } returns batch
         every { parser.parse(any()) } throws falha
 
         service.startImport("orders.csv", "header\nrow1".byteInputStream())
@@ -384,7 +383,7 @@ class ImportOrdersServiceTest {
 
     @Test
     fun `findStatus devolve null quando o batch nao existe`() {
-        every { importBatches.findById(any()) } returns Optional.empty()
+        every { importBatches.findById(any()) } returns null
 
         assertThat(service.findStatus(UUID.randomUUID())).isNull()
     }

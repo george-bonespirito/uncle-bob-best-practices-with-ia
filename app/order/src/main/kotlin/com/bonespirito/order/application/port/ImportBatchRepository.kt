@@ -1,9 +1,15 @@
 package com.bonespirito.order.application.port
 
 import com.bonespirito.order.domain.ImportBatch
-import org.springframework.data.jpa.repository.JpaRepository
 import java.util.UUID
 
-interface ImportBatchRepository : JpaRepository<ImportBatch, UUID> {
+/** Port de persistência do Import Batch (ADR 0009). O adapter mora em `infra.persistence`. */
+interface ImportBatchRepository {
+    fun save(importBatch: ImportBatch): ImportBatch
+
+    fun findById(id: UUID): ImportBatch?
+
     fun findByUploadedFileFingerprint(fingerprint: String): ImportBatch?
+
+    fun findAll(): List<ImportBatch>
 }
