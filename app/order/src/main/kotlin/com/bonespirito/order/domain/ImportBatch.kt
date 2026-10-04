@@ -43,6 +43,15 @@ class ImportBatch(
     val createdAt: Instant = Instant.now(),
     var completedAt: Instant? = null,
 ) {
+    /**
+     * Import Fingerprint enquanto o lote bloqueia reenvio do mesmo arquivo; `null` depois de
+     * [fail] (ADR order/0004, revisão 2026-10-04). O `UNIQUE` de V5 fica nesta coluna, não em
+     * `file_fingerprint`: um arquivo pode ter vários lotes `FAILED` e no máximo um que bloqueia.
+     */
+    @Column(name = "active_fingerprint")
+    var activeFingerprint: String? = uploadedFile.fingerprint
+        private set
+
     fun start() {
         status = ImportBatchStatus.PROCESSING
     }
@@ -55,5 +64,6 @@ class ImportBatch(
     fun fail() {
         status = ImportBatchStatus.FAILED
         completedAt = Instant.now()
+        activeFingerprint = null
     }
 }
