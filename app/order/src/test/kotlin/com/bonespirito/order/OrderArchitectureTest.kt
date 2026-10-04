@@ -18,8 +18,8 @@ import org.junit.jupiter.api.Test
  *   é sobre `domain.policy`, não sobre `domain` inteiro — o agregado usa JPA de
  *   propósito.
  * - Camadas (ADR 0009 de sistema): `application` não depende de `infra`, e
- *   `domain` não depende de `application`. A dependência aponta para dentro:
- *   infra → application → domain.
+ *   `domain` não depende de `application` nem de `infra`. A dependência aponta
+ *   para dentro: infra → application → domain.
  * - `application` também não depende do mecanismo de persistência (Spring Data,
  *   JPA, Hibernate, JDBC): pela ADR 0009 o port é interface pura e o adapter
  *   `Jpa*` mora em `infra`. Hoje os três repositories de `application.port`
@@ -56,6 +56,15 @@ class OrderArchitectureTest {
         noClasses()
             .that().resideInAPackage("..domain..")
             .should().dependOnClassesThat().resideInAPackage("..application..")
+            .because("ADR 0009: a dependência aponta para dentro, domain é o centro")
+            .check(classes)
+    }
+
+    @Test
+    fun `domain nao depende de infra`() {
+        noClasses()
+            .that().resideInAPackage("..domain..")
+            .should().dependOnClassesThat().resideInAPackage("..infra..")
             .because("ADR 0009: a dependência aponta para dentro, domain é o centro")
             .check(classes)
     }
