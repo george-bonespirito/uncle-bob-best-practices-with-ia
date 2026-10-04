@@ -208,7 +208,8 @@ Order é aggregate root; `order_items` é tabela filha (N produtos por pedido �
 | Coluna | Descrição |
 |---|---|
 | `id` | PK, é o `importBatchId` do contrato REST |
-| `file_fingerprint` | hash do conteúdo do arquivo, `UNIQUE` — reenvio do mesmo arquivo é recusado no upload (`409`), sem criar batch |
+| `file_fingerprint` | hash do conteúdo do arquivo, em todo lote (inclusive `FAILED`); sem `UNIQUE` desde a V5 |
+| `active_fingerprint` | igual a `file_fingerprint` enquanto o lote bloqueia reenvio, `NULL` quando o lote vai a `FAILED`; `UNIQUE` — reenvio do mesmo arquivo com lote em qualquer status menos `FAILED` é recusado no upload (`409`), sem criar batch (ADR order/0004, revisão 2026-10-04) |
 | `status` | `PENDING` \| `PROCESSING` \| `COMPLETED` \| `COMPLETED_WITH_ERRORS` \| `FAILED` (falha inesperada no processamento — ADR order/0004, revisão 2026-10-03) |
 | `total_rows`, `processed_rows`, `orders_created` | contadores, atualizados durante o processamento |
 | `file_name` | rastreabilidade |
@@ -232,7 +233,7 @@ Planilha denormalizada: cabeçalho (`source_system_code`, `source_order_number`,
 ```json
 { "importBatchId": "uuid", "status": "PENDING" }
 ```
-→ `409 Conflict` — arquivo com o mesmo Import Fingerprint já foi importado; devolve o `importBatchId` do lote original e nenhum batch novo é criado. Vale também para dois uploads simultâneos do mesmo arquivo: um recebe `202`, o outro `409` com o lote do primeiro (ADR order/0004, revisão 2026-10-03).
+→ `409 Conflict` — arquivo com o mesmo Import Fingerprint tem lote `PENDING`, `PROCESSING`, `COMPLETED` ou `COMPLETED_WITH_ERRORS`; devolve o `importBatchId` desse lote e nenhum batch novo é criado. Lote `FAILED` **não** bloqueia o reenvio: o upload recebe `202` com um lote novo, e o `FAILED` fica como histórico, com status e `completed_at` intactos (ADR order/0004, revisão 2026-10-04). Vale também para dois uploads simultâneos do mesmo arquivo, inclusive dois reenvios depois de um `FAILED`: um recebe `202`, o outro `409` com o lote do primeiro (ADR order/0004, revisões 2026-10-03 e 2026-10-04).
 
 **`GET /imports/orders/{importBatchId}`**
 → `200 OK`
