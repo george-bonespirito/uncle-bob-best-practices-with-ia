@@ -13,8 +13,6 @@ class JpaImportBatchRowErrorRepository internal constructor(
 ) : ImportBatchRowErrorRepository {
 
     override fun save(rowError: ImportBatchRowError): ImportBatchRowError = springData.save(rowError)
-
-    override fun findAll(): List<ImportBatchRowError> = springData.findAll()
 }
 
 internal interface SpringDataImportBatchRowErrorRepository : JpaRepository<ImportBatchRowError, UUID>

@@ -1,9 +1,9 @@
 package com.bonespirito.order.acceptance
 
-import com.bonespirito.order.application.port.ImportBatchRepository
-import com.bonespirito.order.application.port.ImportBatchRowErrorRepository
-import com.bonespirito.order.application.port.OrderRepository
 import com.bonespirito.order.domain.SourceOrderReference
+import com.bonespirito.order.infra.persistence.SpringDataImportBatchRepository
+import com.bonespirito.order.infra.persistence.SpringDataImportBatchRowErrorRepository
+import com.bonespirito.order.infra.persistence.SpringDataOrderRepository
 import io.cucumber.java.en.Given
 import io.cucumber.java.en.Then
 import io.cucumber.java.en.When
@@ -19,11 +19,15 @@ import org.springframework.http.ResponseEntity
 import org.springframework.util.LinkedMultiValueMap
 import java.util.UUID
 
-class BulkImportSteps(
+/**
+ * Lê o estado do banco pelas interfaces Spring Data internas dos adapters, não pelos ports:
+ * os ports de `application.port` expõem só o que a aplicação usa (sem `findAll`).
+ */
+class BulkImportSteps internal constructor(
     private val restTemplate: TestRestTemplate,
-    private val importBatches: ImportBatchRepository,
-    private val rowErrors: ImportBatchRowErrorRepository,
-    private val orders: OrderRepository,
+    private val importBatches: SpringDataImportBatchRepository,
+    private val rowErrors: SpringDataImportBatchRowErrorRepository,
+    private val orders: SpringDataOrderRepository,
     @LocalServerPort private val port: Int,
 ) {
     private lateinit var response: ResponseEntity<Map<*, *>>
