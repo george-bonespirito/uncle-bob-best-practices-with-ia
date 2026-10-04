@@ -61,7 +61,7 @@ class ImportOrdersServiceTest {
     @Test
     fun `aceita o upload, persiste o batch como PENDING com a contagem de linhas e devolve o id`() {
         val saved = slot<ImportBatch>()
-        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.findBlockingByFingerprint(any()) } returns null
         every { importBatches.save(capture(saved)) } answers { saved.captured }
         every { importBatches.findById(any()) } returns null
         every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
@@ -79,7 +79,7 @@ class ImportOrdersServiceTest {
     @Test
     fun `reenvio do mesmo arquivo devolve DuplicateFile com o batch original, sem criar um novo`() {
         val original = ImportBatch(uploadedFile = UploadedFile("orders.csv", "qualquer-fingerprint"))
-        every { importBatches.findByUploadedFileFingerprint(any()) } returns original
+        every { importBatches.findBlockingByFingerprint(any()) } returns original
 
         val result = service.startImport("orders.csv", "header\nrow1".byteInputStream())
 
@@ -90,7 +90,7 @@ class ImportOrdersServiceTest {
     @Test
     fun `processa em background, cria um Order por pedido agrupado e marca o batch como COMPLETED`() {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-1"))
-        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.findBlockingByFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
         every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
@@ -114,7 +114,7 @@ class ImportOrdersServiceTest {
     @Test
     fun `linha invalida nao vira Order, gera erro e marca o batch como COMPLETED_WITH_ERRORS`() {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-2"))
-        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.findBlockingByFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
         every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
@@ -141,7 +141,7 @@ class ImportOrdersServiceTest {
     @Test
     fun `pedido com source_order_number ja existente em outro lote vira erro de duplicata, sem criar Order`() {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-3"))
-        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.findBlockingByFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
         every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers("ERP-SAP", listOf("PO-123")) } returns listOf("PO-123")
@@ -165,7 +165,7 @@ class ImportOrdersServiceTest {
     fun `duplicata e pelo par de origem e numero, consultado por chave e nao pela tabela inteira`() {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-8"))
         val saved = mutableListOf<Order>()
-        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.findBlockingByFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
         every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers("ERP-SAP", listOf("PO-123")) } returns listOf("PO-123")
@@ -190,7 +190,7 @@ class ImportOrdersServiceTest {
     fun `consulta de duplicata vai em blocos de no maximo 1000 chaves, abaixo do limite de parametros do banco`() {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-9"))
         val blocosConsultados = mutableListOf<Int>()
-        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.findBlockingByFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
         every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers("ERP-SAP", any()) } answers {
@@ -212,7 +212,7 @@ class ImportOrdersServiceTest {
     fun `Orders, erros de linha e o fechamento do lote sao gravados dentro de uma unica transacao`() {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-10"))
         val gravacoes = mutableListOf<Pair<String, Boolean>>()
-        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.findBlockingByFingerprint(any()) } returns null
         every { importBatches.save(any()) } answers {
             gravacoes += "batch ${firstArg<ImportBatch>().status}" to transacao.aberta
             batch
@@ -250,7 +250,7 @@ class ImportOrdersServiceTest {
     fun `falha dentro da transacao do lote grava FAILED fora dela, para o status sobreviver ao rollback`() {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-11"))
         val gravacoes = mutableListOf<Pair<ImportBatchStatus, Boolean>>()
-        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.findBlockingByFingerprint(any()) } returns null
         every { importBatches.save(any()) } answers {
             gravacoes += firstArg<ImportBatch>().status to transacao.aberta
             batch
@@ -271,20 +271,20 @@ class ImportOrdersServiceTest {
     @Test
     fun `upload simultaneo do mesmo arquivo que perde a corrida no UNIQUE do fingerprint devolve DuplicateFile`() {
         val vencedor = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-12"))
-        every { importBatches.findByUploadedFileFingerprint(any()) } returnsMany listOf(null, vencedor)
+        every { importBatches.findBlockingByFingerprint(any()) } returnsMany listOf(null, vencedor)
         every { importBatches.save(any()) } throws
             DataIntegrityViolationException("uq_import_batches_file_fingerprint")
 
         val result = service.startImport("orders.csv", "header\nrow1".byteInputStream())
 
         assertThat(result).isEqualTo(ImportUploadResult.DuplicateFile(vencedor.id, vencedor.status))
-        verify(exactly = 2) { importBatches.findByUploadedFileFingerprint(any()) }
+        verify(exactly = 2) { importBatches.findBlockingByFingerprint(any()) }
     }
 
     @Test
     fun `violacao de integridade no insert do lote sem lote com o mesmo fingerprint nao vira 409`() {
         val violacao = DataIntegrityViolationException("outra constraint")
-        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.findBlockingByFingerprint(any()) } returns null
         every { importBatches.save(any()) } throws violacao
 
         val thrown = runCatching { service.startImport("orders.csv", "header\nrow1".byteInputStream()) }
@@ -296,7 +296,7 @@ class ImportOrdersServiceTest {
     fun `mesmo SKU no mesmo pedido vira um Order Item com a quantidade somada`() {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-4"))
         val saved = slot<Order>()
-        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.findBlockingByFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
         every { importBatches.findById(batch.id) } returns batch
         every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
@@ -320,7 +320,7 @@ class ImportOrdersServiceTest {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-5"))
         val statusesSalvos = mutableListOf<ImportBatchStatus>()
         var statusDuranteOParse: ImportBatchStatus? = null
-        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.findBlockingByFingerprint(any()) } returns null
         every { importBatches.save(any()) } answers {
             statusesSalvos += firstArg<ImportBatch>().status
             batch
@@ -348,7 +348,7 @@ class ImportOrdersServiceTest {
     fun `falha inesperada no processamento marca o batch como FAILED e registra o erro no log`() {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-6"))
         val falha = IllegalStateException("banco fora do ar")
-        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.findBlockingByFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
         every { importBatches.findById(batch.id) } returns batch
         every { parser.parse(any()) } throws falha
@@ -368,7 +368,7 @@ class ImportOrdersServiceTest {
     @Test
     fun `se nem marcar FAILED for possivel, registra as duas falhas no log sem deixar a excecao escapar`() {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-7"))
-        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.findBlockingByFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
         every { importBatches.findById(batch.id) } throws IllegalStateException("banco fora do ar")
 

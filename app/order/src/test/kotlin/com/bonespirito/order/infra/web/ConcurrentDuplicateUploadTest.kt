@@ -133,8 +133,8 @@ class ConcurrentDuplicateUploadTest {
             barreira = null
         }
 
-        override fun findByUploadedFileFingerprint(fingerprint: String): ImportBatch? {
-            val encontrado = real.findByUploadedFileFingerprint(fingerprint)
+        override fun findBlockingByFingerprint(fingerprint: String): ImportBatch? {
+            val encontrado = real.findBlockingByFingerprint(fingerprint)
             val atual = barreira
             if (atual != null && chegadas.getAndDecrement() > 0) atual.await(5, TimeUnit.SECONDS)
             return encontrado

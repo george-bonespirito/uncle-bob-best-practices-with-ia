@@ -17,12 +17,13 @@ class JpaImportBatchRepository internal constructor(
 
     override fun findById(id: UUID): ImportBatch? = springData.findByIdOrNull(id)
 
-    override fun findByUploadedFileFingerprint(fingerprint: String): ImportBatch? =
-        springData.findByUploadedFileFingerprint(fingerprint)
+    override fun findBlockingByFingerprint(fingerprint: String): ImportBatch? =
+        springData.findByActiveFingerprint(fingerprint)
 
     override fun findAll(): List<ImportBatch> = springData.findAll()
 }
 
 internal interface SpringDataImportBatchRepository : JpaRepository<ImportBatch, UUID> {
-    fun findByUploadedFileFingerprint(fingerprint: String): ImportBatch?
+    /** `active_fingerprint` só é preenchido em lote que bloqueia reenvio; o `UNIQUE` de V5 garante no máximo um. */
+    fun findByActiveFingerprint(activeFingerprint: String): ImportBatch?
 }

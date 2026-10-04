@@ -43,21 +43,29 @@ class ImportOrdersService(
     }
 
     /**
-     * Dois uploads simultâneos do mesmo arquivo passam juntos pela consulta de fingerprint;
-     * o perdedor bate no `uq_import_batches_file_fingerprint` (V4). Se a releitura acha o lote
-     * do vencedor, é a mesma recusa de reenvio (409); senão a violação é outra e sobe.
+     * Dois uploads simultâneos do mesmo arquivo passam juntos pela consulta do lote que bloqueia;
+     * o perdedor bate no `uq_import_batches_active_fingerprint` (V5). Se a releitura acha o lote
+     * do vencedor, é a mesma recusa de reenvio (409).
+     *
+     * Se a releitura não acha lote que bloqueia — o vencedor já foi a `FAILED` nesse meio-tempo,
+     * ou a violação é outra —, o `INSERT` é tentado **uma** vez mais, sem laço; se violar de novo,
+     * a violação sobe (ADR order/0004, revisão 2026-10-04, retry único aceito em architect-000154).
      */
     private fun acceptNewBatch(fileName: String, fingerprint: String, bytes: ByteArray): ImportUploadResult {
         val rowCount = (bytes.inputStream().bufferedReader().readLines().size - 1).coerceAtLeast(0)
+        fun insertBatch(): ImportBatch = importBatches.save(
+            ImportBatch(
+                uploadedFile = UploadedFile(fileName, fingerprint),
+                progress = ImportProgress(totalRows = rowCount),
+            ),
+        )
+
         val batch = try {
-            importBatches.save(
-                ImportBatch(
-                    uploadedFile = UploadedFile(fileName, fingerprint),
-                    progress = ImportProgress(totalRows = rowCount),
-                ),
-            )
+            insertBatch()
         } catch (e: DataIntegrityViolationException) {
-            return findDuplicateFile(fingerprint) ?: throw e
+            findDuplicateFile(fingerprint)?.let { return it }
+            log.warn("Import Fingerprint {} sem lote que bloqueie após violação; nova tentativa única", fingerprint, e)
+            insertBatch()
         }
 
         executor.submit { process(batch.id, bytes) }
@@ -66,7 +74,7 @@ class ImportOrdersService(
     }
 
     private fun findDuplicateFile(fingerprint: String): ImportUploadResult.DuplicateFile? =
-        importBatches.findByUploadedFileFingerprint(fingerprint)?.let {
+        importBatches.findBlockingByFingerprint(fingerprint)?.let {
             ImportUploadResult.DuplicateFile(it.id, it.status)
         }
 

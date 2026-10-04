@@ -9,7 +9,12 @@ interface ImportBatchRepository {
 
     fun findById(id: UUID): ImportBatch?
 
-    fun findByUploadedFileFingerprint(fingerprint: String): ImportBatch?
+    /**
+     * O lote que bloqueia o reenvio do arquivo com este Import Fingerprint (qualquer status
+     * menos `FAILED`), ou `null` se nenhum bloqueia. Lote `FAILED` não bloqueia (ADR order/0004,
+     * revisão 2026-10-04).
+     */
+    fun findBlockingByFingerprint(fingerprint: String): ImportBatch?
 
     fun findAll(): List<ImportBatch>
 }
