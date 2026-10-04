@@ -71,7 +71,7 @@ class ImportOrdersService(
         }
 
     override fun findStatus(importBatchId: UUID): ImportBatchStatusView? =
-        importBatches.findById(importBatchId).map {
+        importBatches.findById(importBatchId)?.let {
             ImportBatchStatusView(
                 importBatchId = it.id,
                 status = it.status,
@@ -80,7 +80,7 @@ class ImportOrdersService(
                 ordersCreated = it.progress.ordersCreated,
                 rowErrorCount = it.progress.rowErrorCount,
             )
-        }.orElse(null)
+        }
 
     /**
      * Roda no executor em background: exceção que escapasse daqui seria engolida pelo
@@ -113,7 +113,8 @@ class ImportOrdersService(
     }
 
     private fun updateBatch(importBatchId: UUID, change: (ImportBatch) -> Unit) {
-        val batch = importBatches.findById(importBatchId).orElseThrow()
+        val batch = importBatches.findById(importBatchId)
+            ?: throw NoSuchElementException("Import Batch $importBatchId não encontrado")
         change(batch)
         importBatches.save(batch)
     }

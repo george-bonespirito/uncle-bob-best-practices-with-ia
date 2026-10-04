@@ -146,7 +146,7 @@ class ConcurrentDuplicateUploadTest {
         @Bean
         @Primary
         fun importBatchRepositoryComBarreira(
-            @Qualifier("importBatchRepository") real: ImportBatchRepository,
+            @Qualifier("jpaImportBatchRepository") real: ImportBatchRepository,
         ) = BarreiraNaConsultaDeFingerprint(real)
     }
 }
