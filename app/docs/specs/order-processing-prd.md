@@ -232,7 +232,7 @@ Planilha denormalizada: cabeçalho (`source_system_code`, `source_order_number`,
 ```json
 { "importBatchId": "uuid", "status": "PENDING" }
 ```
-→ `409 Conflict` — arquivo com o mesmo Import Fingerprint já foi importado; devolve o `importBatchId` do lote original e nenhum batch novo é criado.
+→ `409 Conflict` — arquivo com o mesmo Import Fingerprint já foi importado; devolve o `importBatchId` do lote original e nenhum batch novo é criado. Vale também para dois uploads simultâneos do mesmo arquivo: um recebe `202`, o outro `409` com o lote do primeiro (ADR order/0004, revisão 2026-10-03).
 
 **`GET /imports/orders/{importBatchId}`**
 → `200 OK`

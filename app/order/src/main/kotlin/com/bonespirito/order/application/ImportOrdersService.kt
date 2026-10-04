@@ -18,7 +18,9 @@ import com.bonespirito.order.domain.policy.groupIntoOrders
 import com.bonespirito.order.domain.policy.mergeQuantitiesBySku
 import com.bonespirito.order.domain.policy.partitionByDuplicate
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
+import org.springframework.transaction.support.TransactionOperations
 import java.io.InputStream
 import java.security.MessageDigest
 import java.util.UUID
@@ -31,28 +33,42 @@ class ImportOrdersService(
     private val rowErrors: ImportBatchRowErrorRepository,
     private val parser: ImportFileParser,
     private val executor: ExecutorService,
+    private val transaction: TransactionOperations,
 ) : ImportOrders, ImportBatchStatusQuery {
 
     override fun startImport(fileName: String, content: InputStream): ImportUploadResult {
         val bytes = content.readBytes()
         val fingerprint = fingerprintOf(bytes)
+        return findDuplicateFile(fingerprint) ?: acceptNewBatch(fileName, fingerprint, bytes)
+    }
 
-        importBatches.findByUploadedFileFingerprint(fingerprint)?.let {
-            return ImportUploadResult.DuplicateFile(it.id, it.status)
-        }
-
+    /**
+     * Dois uploads simultâneos do mesmo arquivo passam juntos pela consulta de fingerprint;
+     * o perdedor bate no `uq_import_batches_file_fingerprint` (V4). Se a releitura acha o lote
+     * do vencedor, é a mesma recusa de reenvio (409); senão a violação é outra e sobe.
+     */
+    private fun acceptNewBatch(fileName: String, fingerprint: String, bytes: ByteArray): ImportUploadResult {
         val rowCount = (bytes.inputStream().bufferedReader().readLines().size - 1).coerceAtLeast(0)
-        val batch = importBatches.save(
-            ImportBatch(
-                uploadedFile = UploadedFile(fileName, fingerprint),
-                progress = ImportProgress(totalRows = rowCount),
-            ),
-        )
+        val batch = try {
+            importBatches.save(
+                ImportBatch(
+                    uploadedFile = UploadedFile(fileName, fingerprint),
+                    progress = ImportProgress(totalRows = rowCount),
+                ),
+            )
+        } catch (e: DataIntegrityViolationException) {
+            return findDuplicateFile(fingerprint) ?: throw e
+        }
 
         executor.submit { process(batch.id, bytes) }
 
         return ImportUploadResult.Accepted(batch.id, batch.status)
     }
+
+    private fun findDuplicateFile(fingerprint: String): ImportUploadResult.DuplicateFile? =
+        importBatches.findByUploadedFileFingerprint(fingerprint)?.let {
+            ImportUploadResult.DuplicateFile(it.id, it.status)
+        }
 
     override fun findStatus(importBatchId: UUID): ImportBatchStatusView? =
         importBatches.findById(importBatchId).map {
@@ -70,12 +86,17 @@ class ImportOrdersService(
      * Roda no executor em background: exceção que escapasse daqui seria engolida pelo
      * `Future` descartado e o lote ficaria `PENDING` para sempre. Por isso esta é a
      * fronteira que captura qualquer falha, registra no log e encerra o lote em `FAILED`.
+     *
+     * Três transações, nesta ordem: `PROCESSING` (fica visível enquanto roda); Orders, erros
+     * de linha e fechamento do lote numa só (`TransactionOperations` explícito — a chamada
+     * vem de outra thread e de dentro da própria classe, onde `@Transactional` não passaria
+     * pelo proxy); e, se essa falhar e voltar inteira, `FAILED` numa transação à parte.
      */
     @Suppress("TooGenericExceptionCaught")
     private fun process(importBatchId: UUID, bytes: ByteArray) {
         try {
             updateBatch(importBatchId) { it.start() }
-            importRows(importBatchId, bytes)
+            transaction.executeWithoutResult { importRows(importBatchId, bytes) }
         } catch (e: Exception) {
             log.error("Import Batch {} falhou no processamento; marcando como FAILED", importBatchId, e)
             markFailed(importBatchId)
@@ -102,10 +123,8 @@ class ImportOrdersService(
         val validRows = parsedRows.filterIsInstance<ParsedRow.Valid>().map { it.numberedRow }
         val invalidRows = parsedRows.filterIsInstance<ParsedRow.Invalid>()
 
-        val existingKeys = orders.findAll()
-            .map { it.sourceOrderReference.sourceSystemCode to it.sourceOrderReference.sourceOrderNumber }
-            .toSet()
-        val partition = partitionByDuplicate(groupIntoOrders(validRows), existingKeys)
+        val groupedOrders = groupIntoOrders(validRows)
+        val partition = partitionByDuplicate(groupedOrders, existingKeysAmong(groupedOrders))
 
         partition.new.forEach { orders.save(it.toOrder()) }
 
@@ -122,6 +141,16 @@ class ImportOrdersService(
             batch.finish(hasErrors = rowErrorsToSave.isNotEmpty())
         }
     }
+
+    /** Só as chaves do lote, em blocos abaixo do limite de parâmetros por statement do banco. */
+    private fun existingKeysAmong(groupedOrders: List<GroupedOrder>): Set<Pair<String, String>> =
+        groupedOrders.groupBy({ it.sourceSystemCode }, { it.sourceOrderNumber })
+            .flatMap { (sourceSystemCode, sourceOrderNumbers) ->
+                sourceOrderNumbers.chunked(KEY_LOOKUP_CHUNK_SIZE)
+                    .flatMap { orders.findExistingSourceOrderNumbers(sourceSystemCode, it) }
+                    .map { sourceSystemCode to it }
+            }
+            .toSet()
 
     private fun fingerprintOf(bytes: ByteArray): String =
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
@@ -151,6 +180,7 @@ class ImportOrdersService(
         ImportBatchRowError(importBatchId = importBatchId, rowNumber = rowNumber, reason = reason)
 
     private companion object {
+        const val KEY_LOOKUP_CHUNK_SIZE = 1_000
         val log = LoggerFactory.getLogger(ImportOrdersService::class.java)
     }
 }

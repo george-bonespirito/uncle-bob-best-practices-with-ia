@@ -54,6 +54,13 @@ class BulkImportSteps(
         fixture = "fixtures/order_rejected_by_database.csv"
     }
 
+    @Given("uma planilha .csv com um pedido válido, uma linha inválida e um pedido que o banco recusa ao gravar")
+    fun planilhaComFalhaDepoisDeDadoValido() {
+        // PO-910 é válido e PO-911 é erro de linha; PO-912 estoura o VARCHAR(50) de
+        // orders.source_system_code (V2). Sem transação, o PO-910 ficava gravado num lote FAILED.
+        fixture = "fixtures/orders_partially_rejected_by_database.csv"
+    }
+
     @Given("uma planilha .csv já importada com sucesso")
     fun planilhaJaImportadaComSucesso() {
         val uploadResponse = upload()
@@ -179,6 +186,17 @@ class BulkImportSteps(
     fun nenhumOrderNovoCriadoParaEssaLinha() {
         val referencia = SourceOrderReference("ERP-SAP", "PO-123")
         assertThat(orders.findAll().count { it.sourceOrderReference == referencia }).isEqualTo(1)
+    }
+
+    @Then("nenhum Order desse lote fica gravado")
+    fun nenhumOrderDoLoteGravado() {
+        val numerosDoLote = setOf("PO-910", "PO-911", "PO-912")
+        assertThat(orders.findAll().filter { it.sourceOrderReference.sourceOrderNumber in numerosDoLote }).isEmpty()
+    }
+
+    @Then("nenhum erro de linha desse lote fica gravado")
+    fun nenhumErroDeLinhaDoLoteGravado() {
+        assertThat(rowErrors.findAll().filter { it.importBatchId == importBatchId }).isEmpty()
     }
 
     @Then("nenhum Import Batch novo é criado")

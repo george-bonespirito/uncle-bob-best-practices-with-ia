@@ -47,3 +47,10 @@ Feature: Importação em massa de pedidos via planilha
     Given uma planilha .csv com um pedido que o banco recusa ao gravar (source_system_code maior que a coluna)
     When o usuário faz upload e aguarda o processamento terminar
     Then o status final é "FAILED"
+
+  Scenario: Lote que vai a FAILED não deixa Order nem erro de linha gravados pela metade
+    Given uma planilha .csv com um pedido válido, uma linha inválida e um pedido que o banco recusa ao gravar
+    When o usuário faz upload e aguarda o processamento terminar
+    Then o status final é "FAILED"
+    And nenhum Order desse lote fica gravado
+    And nenhum erro de linha desse lote fica gravado

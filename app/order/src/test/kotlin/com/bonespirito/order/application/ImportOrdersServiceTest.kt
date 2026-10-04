@@ -14,7 +14,6 @@ import com.bonespirito.order.domain.ImportBatchStatus
 import com.bonespirito.order.domain.ImportRow
 import com.bonespirito.order.domain.NumberedRow
 import com.bonespirito.order.domain.Order
-import com.bonespirito.order.domain.SourceOrderReference
 import com.bonespirito.order.domain.UploadedFile
 import com.bonespirito.order.domain.policy.ParsedRow
 import io.mockk.every
@@ -26,6 +25,10 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.transaction.support.SimpleTransactionStatus
+import org.springframework.transaction.support.TransactionCallback
+import org.springframework.transaction.support.TransactionOperations
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
@@ -39,7 +42,8 @@ class ImportOrdersServiceTest {
     private val rowErrors = mockk<ImportBatchRowErrorRepository>()
     private val parser = mockk<ImportFileParser>()
     private val executor = Executors.newSingleThreadExecutor()
-    private val service = ImportOrdersService(importBatches, orders, rowErrors, parser, executor)
+    private val transacao = TransacaoFake()
+    private val service = ImportOrdersService(importBatches, orders, rowErrors, parser, executor, transacao)
 
     private val serviceLogger = LoggerFactory.getLogger(ImportOrdersService::class.java) as Logger
     private val logs = ListAppender<ILoggingEvent>()
@@ -61,7 +65,7 @@ class ImportOrdersServiceTest {
         every { importBatches.findByUploadedFileFingerprint(any()) } returns null
         every { importBatches.save(capture(saved)) } answers { saved.captured }
         every { importBatches.findById(any()) } returns Optional.empty()
-        every { orders.findAll() } returns emptyList()
+        every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
         every { parser.parse(any()) } returns emptyList()
 
         val threeDataRows = "header\nrow1\nrow2\nrow3".byteInputStream()
@@ -90,7 +94,7 @@ class ImportOrdersServiceTest {
         every { importBatches.findByUploadedFileFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
         every { importBatches.findById(batch.id) } returns Optional.of(batch)
-        every { orders.findAll() } returns emptyList()
+        every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
         every { orders.save(any()) } answers { firstArg() }
         every { parser.parse(any()) } returns listOf(
             ParsedRow.Valid(numberedRow(1, "PO-001", "SKU-1", 2)),
@@ -114,7 +118,7 @@ class ImportOrdersServiceTest {
         every { importBatches.findByUploadedFileFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
         every { importBatches.findById(batch.id) } returns Optional.of(batch)
-        every { orders.findAll() } returns emptyList()
+        every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
         every { orders.save(any()) } answers { firstArg() }
         every { rowErrors.save(any()) } answers { firstArg() }
         every { parser.parse(any()) } returns listOf(
@@ -138,12 +142,10 @@ class ImportOrdersServiceTest {
     @Test
     fun `pedido com source_order_number ja existente em outro lote vira erro de duplicata, sem criar Order`() {
         val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-3"))
-        val existingOrder = mockk<Order>()
-        every { existingOrder.sourceOrderReference } returns SourceOrderReference("ERP-SAP", "PO-123")
         every { importBatches.findByUploadedFileFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
         every { importBatches.findById(batch.id) } returns Optional.of(batch)
-        every { orders.findAll() } returns listOf(existingOrder)
+        every { orders.findExistingSourceOrderNumbers("ERP-SAP", listOf("PO-123")) } returns listOf("PO-123")
         every { rowErrors.save(any()) } answers { firstArg() }
         every { parser.parse(any()) } returns listOf(ParsedRow.Valid(numberedRow(1, "PO-123", "SKU-9", 3)))
 
@@ -157,6 +159,138 @@ class ImportOrdersServiceTest {
         verify {
             rowErrors.save(match<ImportBatchRowError> { it.reason.contains("duplicata") && it.rowNumber == 1 })
         }
+        verify(exactly = 0) { orders.findAll() }
+    }
+
+    @Test
+    fun `duplicata e pelo par de origem e numero, consultado por chave e nao pela tabela inteira`() {
+        val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-8"))
+        val saved = mutableListOf<Order>()
+        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.save(any()) } returns batch
+        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { orders.findExistingSourceOrderNumbers("ERP-SAP", listOf("PO-123")) } returns listOf("PO-123")
+        every { orders.findExistingSourceOrderNumbers("ERP-OUTRO", listOf("PO-123")) } returns emptyList()
+        every { orders.save(capture(saved)) } answers { firstArg() }
+        every { rowErrors.save(any()) } answers { firstArg() }
+        every { parser.parse(any()) } returns listOf(
+            ParsedRow.Valid(numberedRow(1, "PO-123", "SKU-1", 1, sourceSystemCode = "ERP-SAP")),
+            ParsedRow.Valid(numberedRow(2, "PO-123", "SKU-1", 1, sourceSystemCode = "ERP-OUTRO")),
+        )
+
+        service.startImport("orders.csv", "header\nrow1\nrow2".byteInputStream())
+        executor.shutdown()
+        executor.awaitTermination(1, TimeUnit.SECONDS)
+
+        assertThat(batch.status).isEqualTo(ImportBatchStatus.COMPLETED_WITH_ERRORS)
+        assertThat(saved.map { it.sourceOrderReference.sourceSystemCode }).containsExactly("ERP-OUTRO")
+        verify(exactly = 0) { orders.findAll() }
+    }
+
+    @Test
+    fun `consulta de duplicata vai em blocos de no maximo 1000 chaves, abaixo do limite de parametros do banco`() {
+        val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-9"))
+        val blocosConsultados = mutableListOf<Int>()
+        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.save(any()) } returns batch
+        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { orders.findExistingSourceOrderNumbers("ERP-SAP", any()) } answers {
+            blocosConsultados += secondArg<Collection<String>>().size
+            emptyList()
+        }
+        every { orders.save(any()) } answers { firstArg() }
+        every { parser.parse(any()) } returns (1..1001).map { ParsedRow.Valid(numberedRow(it, "PO-$it", "SKU-1", 1)) }
+
+        service.startImport("orders.csv", "header".byteInputStream())
+        executor.shutdown()
+        executor.awaitTermination(5, TimeUnit.SECONDS)
+
+        assertThat(batch.status).isEqualTo(ImportBatchStatus.COMPLETED)
+        assertThat(blocosConsultados).containsExactly(1000, 1)
+    }
+
+    @Test
+    fun `Orders, erros de linha e o fechamento do lote sao gravados dentro de uma unica transacao`() {
+        val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-10"))
+        val gravacoes = mutableListOf<Pair<String, Boolean>>()
+        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.save(any()) } answers {
+            gravacoes += "batch ${firstArg<ImportBatch>().status}" to transacao.aberta
+            batch
+        }
+        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
+        every { orders.save(any()) } answers {
+            gravacoes += "order" to transacao.aberta
+            firstArg()
+        }
+        every { rowErrors.save(any()) } answers {
+            gravacoes += "rowError" to transacao.aberta
+            firstArg()
+        }
+        every { parser.parse(any()) } returns listOf(
+            ParsedRow.Valid(numberedRow(1, "PO-001", "SKU-1", 2)),
+            ParsedRow.Invalid(rowNumber = 2, reason = "customer_id ausente"),
+        )
+
+        service.startImport("orders.csv", "header\nrow1\nrow2".byteInputStream())
+        executor.shutdown()
+        executor.awaitTermination(1, TimeUnit.SECONDS)
+
+        assertThat(transacao.execucoes).isEqualTo(1)
+        assertThat(gravacoes).containsExactly(
+            "batch PENDING" to false,
+            "batch PROCESSING" to false,
+            "order" to true,
+            "rowError" to true,
+            "batch COMPLETED_WITH_ERRORS" to true,
+        )
+    }
+
+    @Test
+    fun `falha dentro da transacao do lote grava FAILED fora dela, para o status sobreviver ao rollback`() {
+        val batch = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-11"))
+        val gravacoes = mutableListOf<Pair<ImportBatchStatus, Boolean>>()
+        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.save(any()) } answers {
+            gravacoes += firstArg<ImportBatch>().status to transacao.aberta
+            batch
+        }
+        every { importBatches.findById(batch.id) } returns Optional.of(batch)
+        every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
+        every { orders.save(any()) } throws IllegalStateException("valor maior que a coluna")
+        every { parser.parse(any()) } returns listOf(ParsedRow.Valid(numberedRow(1, "PO-001", "SKU-1", 2)))
+
+        service.startImport("orders.csv", "header\nrow1".byteInputStream())
+        executor.shutdown()
+        executor.awaitTermination(1, TimeUnit.SECONDS)
+
+        assertThat(transacao.execucoes).isEqualTo(1)
+        assertThat(gravacoes.last()).isEqualTo(ImportBatchStatus.FAILED to false)
+    }
+
+    @Test
+    fun `upload simultaneo do mesmo arquivo que perde a corrida no UNIQUE do fingerprint devolve DuplicateFile`() {
+        val vencedor = ImportBatch(uploadedFile = UploadedFile("orders.csv", "fp-12"))
+        every { importBatches.findByUploadedFileFingerprint(any()) } returnsMany listOf(null, vencedor)
+        every { importBatches.save(any()) } throws
+            DataIntegrityViolationException("uq_import_batches_file_fingerprint")
+
+        val result = service.startImport("orders.csv", "header\nrow1".byteInputStream())
+
+        assertThat(result).isEqualTo(ImportUploadResult.DuplicateFile(vencedor.id, vencedor.status))
+        verify(exactly = 2) { importBatches.findByUploadedFileFingerprint(any()) }
+    }
+
+    @Test
+    fun `violacao de integridade no insert do lote sem lote com o mesmo fingerprint nao vira 409`() {
+        val violacao = DataIntegrityViolationException("outra constraint")
+        every { importBatches.findByUploadedFileFingerprint(any()) } returns null
+        every { importBatches.save(any()) } throws violacao
+
+        val thrown = runCatching { service.startImport("orders.csv", "header\nrow1".byteInputStream()) }
+
+        assertThat(thrown.exceptionOrNull()).isSameAs(violacao)
     }
 
     @Test
@@ -166,7 +300,7 @@ class ImportOrdersServiceTest {
         every { importBatches.findByUploadedFileFingerprint(any()) } returns null
         every { importBatches.save(any()) } returns batch
         every { importBatches.findById(batch.id) } returns Optional.of(batch)
-        every { orders.findAll() } returns emptyList()
+        every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
         every { orders.save(capture(saved)) } answers { saved.captured }
         every { parser.parse(any()) } returns listOf(
             ParsedRow.Valid(numberedRow(1, "PO-001", "SKU-1", 2)),
@@ -193,7 +327,7 @@ class ImportOrdersServiceTest {
             batch
         }
         every { importBatches.findById(batch.id) } returns Optional.of(batch)
-        every { orders.findAll() } returns emptyList()
+        every { orders.findExistingSourceOrderNumbers(any(), any()) } returns emptyList()
         every { parser.parse(any()) } answers {
             statusDuranteOParse = batch.status
             emptyList()
@@ -255,8 +389,30 @@ class ImportOrdersServiceTest {
         assertThat(service.findStatus(UUID.randomUUID())).isNull()
     }
 
-    private fun numberedRow(rowNumber: Int, sourceOrderNumber: String, sku: String, quantity: Int) = NumberedRow(
+    private fun numberedRow(
+        rowNumber: Int,
+        sourceOrderNumber: String,
+        sku: String,
+        quantity: Int,
+        sourceSystemCode: String = "ERP-SAP",
+    ) = NumberedRow(
         rowNumber,
-        ImportRow("ERP-SAP", sourceOrderNumber, UUID.randomUUID(), Instant.now(), sku, quantity),
+        ImportRow(sourceSystemCode, sourceOrderNumber, UUID.randomUUID(), Instant.now(), sku, quantity),
     )
+
+    /** Fronteira transacional de mentira: só registra se a gravação aconteceu dentro dela. */
+    private class TransacaoFake : TransactionOperations {
+        @Volatile var aberta = false
+        @Volatile var execucoes = 0
+
+        override fun <T : Any?> execute(action: TransactionCallback<T>): T? {
+            execucoes++
+            aberta = true
+            try {
+                return action.doInTransaction(SimpleTransactionStatus())
+            } finally {
+                aberta = false
+            }
+        }
+    }
 }
