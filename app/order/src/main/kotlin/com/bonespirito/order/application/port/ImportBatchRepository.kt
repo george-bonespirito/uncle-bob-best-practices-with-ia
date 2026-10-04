@@ -15,6 +15,4 @@ interface ImportBatchRepository {
      * revisão 2026-10-04).
      */
     fun findBlockingByFingerprint(fingerprint: String): ImportBatch?
-
-    fun findAll(): List<ImportBatch>
 }

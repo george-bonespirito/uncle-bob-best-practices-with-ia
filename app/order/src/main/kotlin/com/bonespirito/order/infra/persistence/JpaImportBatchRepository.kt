@@ -19,8 +19,6 @@ class JpaImportBatchRepository internal constructor(
 
     override fun findBlockingByFingerprint(fingerprint: String): ImportBatch? =
         springData.findByActiveFingerprint(fingerprint)
-
-    override fun findAll(): List<ImportBatch> = springData.findAll()
 }
 
 internal interface SpringDataImportBatchRepository : JpaRepository<ImportBatch, UUID> {

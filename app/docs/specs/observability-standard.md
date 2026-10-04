@@ -95,4 +95,4 @@ Amostragem **100%** enquanto o volume não doer. Amostrar antes de medir é otim
 
 Gatilho para revisitar: quando o volume diário de trace se aproximar do que a retenção D-1 aguenta sem pressão de disco — a infra mede e avisa; não é decisão da aplicação.
 
-As portas OTLP (4317/4318) já estão abertas. No dia em que a primeira app emitir, não há mudança de infra a fazer.
+As portas OTLP (4317/4318) **ainda não estão publicadas**: o Alloy escuta nelas dentro do container, mas o Service do Kubernetes não as expõe (falta `alloy.extraPorts` no repo de infra; sre-000004). Uma app que emitir hoje não alcança o Collector. Abrir as portas é mudança de infra: depende de uma spec do `sre` para o pipeline OTLP do Alloy e de um commit do `devops.infra` no repo de infra.

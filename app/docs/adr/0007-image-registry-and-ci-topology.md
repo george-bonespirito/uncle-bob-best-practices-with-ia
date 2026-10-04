@@ -17,3 +17,12 @@ Alternativas rejeitadas:
 - **Agente Woodpecker self-hosted** — decisão original, revertida junto com o registry: só fazia sentido pra alcançar um registry LAN-only que não existe mais neste desenho.
 
 Status: accepted
+
+## Nota (2026-10-04): estado atual é GHCR e Woodpecker próprio no cluster (architect-000153)
+
+O corpo acima ficou desatualizado nos dois pontos que decide. O que vale hoje, conferido pelo `devops.infra` (devops.infra-000049) na API do Woodpecker e no repo de infra:
+
+- **Registry: GitHub Container Registry**, `ghcr.io/torgge/<imagem>`, imagens públicas. É a [ADR-011 do repo de infra](https://codeberg.org/torgge/bonespirito-cluster-k3s-infra/src/branch/main/docs/adr/ADR-011.md), que supersedeu a linha de registry da ADR-004 de lá. O Codeberg Container Registry não é o registry em uso. A imagem do MS Order é `ghcr.io/torgge/ms-order`, publicada pelo `.woodpecker/publish.yaml` (Jib, só em push na `main`, secrets `ghcr_user`/`ghcr_token` do próprio Woodpecker).
+- **Runner: Woodpecker próprio no cluster**, com server e agent no k3s e backend Kubernetes; os builds rodam no namespace `woodpecker-builds`, um workflow por vez. Isso está na [ADR-026 do repo de infra](https://codeberg.org/torgge/bonespirito-cluster-k3s-infra/src/branch/main/docs/adr/ADR-026.md). A UI fica em `ci.bonespirito.com`, pelo Cloudflare Tunnel ([ADR-027 do repo de infra](https://codeberg.org/torgge/bonespirito-cluster-k3s-infra/src/branch/main/docs/adr/ADR-027.md)). **Não é** o runner compartilhado do Codeberg. Este repo está ativo no Woodpecker, que dispara pipelines por push e pull request via webhook do Codeberg.
+
+Isto é registro de estado, não decisão nova desta sessão: registry e runner são decisão do repo de infra, e as ADRs de lá mandam. As "alternativas rejeitadas" acima ficam como histórico da rodada de 2026-08-30.
