@@ -11,6 +11,4 @@ interface OrderRepository {
      * consulta cobre só as chaves do lote, não a tabela inteira.
      */
     fun findExistingSourceOrderNumbers(sourceSystemCode: String, sourceOrderNumbers: Collection<String>): List<String>
-
-    fun findAll(): List<Order>
 }

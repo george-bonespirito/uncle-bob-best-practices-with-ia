@@ -20,8 +20,6 @@ class JpaOrderRepository internal constructor(
         sourceSystemCode: String,
         sourceOrderNumbers: Collection<String>,
     ): List<String> = springData.findExistingSourceOrderNumbers(sourceSystemCode, sourceOrderNumbers)
-
-    override fun findAll(): List<Order> = springData.findAll()
 }
 
 internal interface SpringDataOrderRepository : JpaRepository<Order, UUID> {

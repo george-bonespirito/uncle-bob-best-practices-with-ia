@@ -10,6 +10,4 @@ interface ImportBatchRepository {
     fun findById(id: UUID): ImportBatch?
 
     fun findByUploadedFileFingerprint(fingerprint: String): ImportBatch?
-
-    fun findAll(): List<ImportBatch>
 }

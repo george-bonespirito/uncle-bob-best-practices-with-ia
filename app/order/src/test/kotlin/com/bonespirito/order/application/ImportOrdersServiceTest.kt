@@ -158,7 +158,6 @@ class ImportOrdersServiceTest {
         verify {
             rowErrors.save(match<ImportBatchRowError> { it.reason.contains("duplicata") && it.rowNumber == 1 })
         }
-        verify(exactly = 0) { orders.findAll() }
     }
 
     @Test
@@ -183,7 +182,6 @@ class ImportOrdersServiceTest {
 
         assertThat(batch.status).isEqualTo(ImportBatchStatus.COMPLETED_WITH_ERRORS)
         assertThat(saved.map { it.sourceOrderReference.sourceSystemCode }).containsExactly("ERP-OUTRO")
-        verify(exactly = 0) { orders.findAll() }
     }
 
     @Test
