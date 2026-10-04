@@ -1,7 +1,10 @@
 package com.bonespirito.order.application.port
 
 import com.bonespirito.order.domain.ImportBatchRowError
-import org.springframework.data.jpa.repository.JpaRepository
-import java.util.UUID
 
-interface ImportBatchRowErrorRepository : JpaRepository<ImportBatchRowError, UUID>
+/** Port de persistência dos erros de linha do lote (ADR 0009). O adapter mora em `infra.persistence`. */
+interface ImportBatchRowErrorRepository {
+    fun save(rowError: ImportBatchRowError): ImportBatchRowError
+
+    fun findAll(): List<ImportBatchRowError>
+}
