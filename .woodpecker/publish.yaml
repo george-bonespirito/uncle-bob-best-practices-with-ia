@@ -16,7 +16,8 @@
 #
 # Só publica push em main: imagem de branch WIP poluiria o GHCR sem consumidor.
 when:
-  - event: push
+  # manual: permite republicar pelo botão "Run pipeline" do Woodpecker.
+  - event: [push, manual]
     branch: main
 
 steps:
