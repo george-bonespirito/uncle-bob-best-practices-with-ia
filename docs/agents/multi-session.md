@@ -129,7 +129,7 @@ Preserva o filtro por tipo que já existe e mostra o dono em `git branch -r`, an
 
 **Só George mergeia.** Uma sessão nunca mergeia, nem o próprio PR nem o de outra. Um PR já foi mergeado com um commit enquanto a sessão dona ainda empurrava outros seis, que ficaram órfãos numa branch com PR fechado.
 
-**Corpo do PR identifica a sessão.** Todas usam o mesmo token do Codeberg, então todo PR, commit e merge sai como `torgge` — sem isso não há como saber quem abriu o quê.
+**Corpo do PR identifica a sessão.** Todas usam a mesma conta do GitHub, então todo PR, commit e merge sai como `george-bonespirito` — sem isso não há como saber quem abriu o quê.
 
 **Não toque na branch de outra sessão.** Se o trabalho colide, fale com ela pelo barramento e reconcilie do seu lado.
 
@@ -150,8 +150,8 @@ Uma skill ou `AGENTS.md` **aponta**; não copia.
 Anexada, não reescrita — a convenção deste repo.
 
 **O barramento deste time deixou de ser o mcp-bus.** O canal normativo agora é o
-repositório `torgge/agent-bus`, decidido na
-[ADR-001 de lá](https://codeberg.org/torgge/agent-bus/src/branch/main/docs/adr/ADR-001.md)
+repositório `george-bonespirito/agent-bus`, decidido na
+[ADR-001 de lá](https://github.com/george-bonespirito/agent-bus/blob/main/docs/adr/ADR-001.md)
 (mergeada em `4bd8a8e`): uma outbox NDJSON por papel em git, escritor único por
 arquivo, cursor por último `id` visto. A remoção dos recursos do mcp-bus do k3s foi
 pedida ao DEVOPS; a execução e a ordem são dele.

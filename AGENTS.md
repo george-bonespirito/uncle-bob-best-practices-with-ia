@@ -37,10 +37,10 @@ Não há `./gradlew` na raiz; build é `docker compose -f app/compose.yaml run -
 
 - **ADR**: numerada por escopo (`app/docs/adr/`, `app/<ctx>/docs/adr/`). Revertida não apaga — nota datada no fim. Revisão **anexa**, não reescreve. Skill: `.agents/skills/adr-new/`.
 - **Diagrama**: `.drawio.svg` no mesmo PR da decisão. Hook avisa o que ficou para trás.
-- **Infra**: cluster em repo separado (`bonespirito-cluster-k3s-infra`). Coordenação via [`agent-bus`](https://codeberg.org/torgge/agent-bus) (outbox NDJSON por papel). Skill: `.agents/skills/infra-relay/`.
+- **Infra**: cluster em repo separado (`bonespirito-cluster-k3s-infra`). Coordenação via [`agent-bus`](https://github.com/george-bonespirito/agent-bus) (outbox NDJSON por papel). Skill: `.agents/skills/infra-relay/`.
 - **Enforcement de contexto de vendor** (ADR-005 do agent-bus): nenhum `CLAUDE.md`/`CLAUDE.local.md` no repo, nenhuma referência viva a `CLAUDE.md` fora de `.vendor-context-allow`. Duas camadas, uma implementação (`scripts/check-vendor-context.sh`, fonte canônica no agent-bus): hook local (`scripts/hooks/pre-commit`, `--staged`) + CI (`.woodpecker/vendor-context.yaml`, `--all`). Instalar o hook **uma vez por clone**: `git config core.hooksPath scripts/hooks` — não vem com o commit.
 - **Build/teste**: só no MacBook (`DEVELOPER`). `ARCHITECT` (llm-server) não compila nem testa; alegação de "funciona" sem evidência não é verificada.
-- **Tracker**: Codeberg Issues (público, GET anônimo). Forgejo REST API. Labels mattpocock. Skill: `.agents/skills/issue-ops/`.
+- **Tracker**: GitHub Issues (público, leitura anônima). `gh` CLI. Labels mattpocock. Skill: `.agents/skills/issue-ops/`.
 - **Quality gate**: `detekt` + testes + JaCoCo (LINE≥80% BRANCH≥70%) + ArchUnit + Pitest (domain.policy.*, 80%). Pitest fica **fora** do `check` (caro, de propósito) — rode `./gradlew pitest` à parte. Skill: `.agents/skills/quality-gate/`.
 - **Gherkin**: `cucumber.filter.tags=not @pending` — remover a tag `@pending` do cenário é o gesto que o põe no check. Implementação de um cenário começa aí.
 

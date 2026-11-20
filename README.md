@@ -1,6 +1,6 @@
 # uncle-bob-best-practices-with-ia
 
-Repositório pessoal de George Bonespirito, hospedado no [Codeberg](https://codeberg.org/torgge/uncle-bob-best-practices-with-ia) (não no GitHub).
+Repositório pessoal de George Bonespirito, hospedado no [GitHub](https://github.com/george-bonespirito/uncle-bob-best-practices-with-ia) (migrado do Codeberg em 2026-11-20).
 
 Contém **duas coisas sem relação entre si**. Vale saber disso antes de navegar, porque a estrutura de diretórios não deixa óbvio:
 
@@ -21,10 +21,10 @@ Há `app/Dockerfile` + `app/compose.yaml` (issue #70): build e teste rodam em co
 
 ```bash
 # HTTPS
-git clone https://codeberg.org/torgge/uncle-bob-best-practices-with-ia.git
+git clone https://github.com/george-bonespirito/uncle-bob-best-practices-with-ia
 
 # SSH
-git clone git@codeberg.org:torgge/uncle-bob-best-practices-with-ia.git
+git clone git@github.com:george-bonespirito/uncle-bob-best-practices-with-ia.git
 ```
 
 Pipeline de transcrição — sem `package.json`, só `node:fs`, idempotente:
@@ -66,7 +66,7 @@ Decisão que vale para o sistema todo vai em `app/docs/adr/`; decisão local a u
 
 ## Infraestrutura
 
-O sistema é desenhado para rodar num cluster k3s on-premises gerenciado por ArgoCD, num repositório separado ([`bonespirito-cluster-k3s-infra`](https://codeberg.org/torgge/bonespirito-cluster-k3s-infra)). Postgres, Kafka e Apicurio Registry já rodam lá; o Conductor ainda não. As decisões de infra vivem naquele repositório, não neste.
+O sistema é desenhado para rodar num cluster k3s on-premises gerenciado por ArgoCD, num repositório separado ([`bonespirito-cluster-k3s-infra`](https://github.com/george-bonespirito/bonespirito-cluster-k3s-infra)). Postgres, Kafka e Apicurio Registry já rodam lá; o Conductor ainda não. As decisões de infra vivem naquele repositório, não neste.
 
 ## Licença
 

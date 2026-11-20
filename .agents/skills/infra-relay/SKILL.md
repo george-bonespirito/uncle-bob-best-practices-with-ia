@@ -1,6 +1,6 @@
 ---
 name: infra-relay
-description: Protocol for coordinating with the infra session (devops.infra) over the torgge/agent-bus channel — NDJSON outboxes in git, single writer per file, local cursor by last seen id. Load before checking the bus, sending any cross-repo message, or answering questions about that protocol.
+description: Protocol for coordinating with the infra session (devops.infra) over the george-bonespirito/agent-bus channel — NDJSON outboxes in git, single writer per file, local cursor by last seen id. Load before checking the bus, sending any cross-repo message, or answering questions about that protocol.
 user-invocable: false
 ---
 
@@ -8,7 +8,7 @@ user-invocable: false
 
 **Quem é quem, quem decide o quê:** [`docs/agents/multi-session.md`](../../../docs/agents/multi-session.md) e [`docs/adr/0003`](../../../docs/adr/0003-identidade-de-sessao-e-role-mais-repo.md). Se esta skill e o agent-bus divergirem, o agent-bus manda — lá o código (NDJSON) é a verdade compartilhada.
 
-O canal do time é o repositório **[`torgge/agent-bus`](https://codeberg.org/torgge/agent-bus)**: uma outbox NDJSON por papel, em git, escritor único por arquivo, cursor por último `id` visto. Decisão: [ADR-001 do agent-bus](https://codeberg.org/torgge/agent-bus/src/branch/main/docs/adr/ADR-001.md). O transporte anterior (mcp-bus, MCP Streamable HTTP em `mcp.lab.bonespirito.com`) foi descartado em 2026-09-19; o servidor não existe mais e nenhuma ferramenta dele é chamável — `join`/`poll`/`send`/`ack` dessa época são histórico, não instrução.
+O canal do time é o repositório **[`george-bonespirito/agent-bus`](https://github.com/george-bonespirito/agent-bus)**: uma outbox NDJSON por papel, em git, escritor único por arquivo, cursor por último `id` visto. Decisão: [ADR-001 do agent-bus](https://github.com/george-bonespirito/agent-bus/blob/main/docs/adr/ADR-001.md). O transporte anterior (mcp-bus, MCP Streamable HTTP em `mcp.lab.bonespirito.com`) foi descartado em 2026-09-19; o servidor não existe mais e nenhuma ferramenta dele é chamável — `join`/`poll`/`send`/`ack` dessa época são histórico, não instrução.
 
 ## Onde estão as coisas
 

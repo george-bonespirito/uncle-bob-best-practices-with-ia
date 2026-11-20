@@ -29,7 +29,7 @@ configure<com.google.cloud.tools.jib.gradle.JibExtension> {
         ports = listOf("8080")
     }
     to {
-        image = "ghcr.io/torgge/ms-order:${System.getenv("CI_COMMIT_SHA") ?: "dev"}"
+        image = "ghcr.io/george-bonespirito/ms-order:${System.getenv("CI_COMMIT_SHA") ?: "dev"}"
         val user = System.getenv("GHCR_USER")
         val token = System.getenv("GHCR_TOKEN")
         if (user != null && token != null) {
